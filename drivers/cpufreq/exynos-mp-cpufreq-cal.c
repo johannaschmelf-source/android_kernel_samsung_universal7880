@@ -177,37 +177,11 @@ static int exynos_mp_cpufreq_init_cal_table(cluster_type cluster)
 	ptr_temp_table = kzalloc(sizeof(struct dvfs_rate_volt)
 				* ptr->max_idx_num, GFP_KERNEL);
 
-	/* check freq_table with cal */
-	table_size = cal_dfs_get_rate_asv_table(cl_id, ptr_temp_table);
-
-	if (ptr->max_idx_num != table_size) {
-		pr_err("%s: DT is not matched cal table size\n", __func__);
-		kfree(ptr_temp_table);
-		return -EINVAL;
-	}
-
-	cal_max_freq = cal_dfs_get_max_freq(cl_id);
-	if (!cal_max_freq) {
-		pr_err("%s: failed get max frequency from PWRCAL\n", __func__);
-		kfree(ptr_temp_table);
-		return -EINVAL;
-	}
-
-	for (i = 0; i< ptr->max_idx_num; i++) {
-		if (ptr->freq_table[i].frequency != (unsigned int)ptr_temp_table[i].rate) {
-			pr_err("%s: DT is not matched cal frequency_table(dt : %d, cal : %d\n",
-					__func__, ptr->freq_table[i].frequency,
-					(unsigned int)ptr_temp_table[i].rate);
-			kfree(ptr_temp_table);
-			return -EINVAL;
-		} else {
-			/* copy cal voltage to cpufreq driver voltage table */
-			ptr->volt_table[i] = ptr_temp_table[i].volt;
-		}
-
-		if (ptr_temp_table[i].rate == cal_max_freq)
-			cal_max_support_idx = i;
-	}
+	/* bypass cal table check for custom OC frequencies */
+	cal_max_freq = ptr->freq_table[0].frequency;
+	cal_max_support_idx = 0;
+	ptr->max_support_idx = 0;
+	ptr_temp_table[0].rate = cal_max_freq;
 
 	pr_info("CPUFREQ of %s CAL max_freq %lu KHz, DT max_freq %lu\n",
 			cluster ? "CL1" : "CL0",
