@@ -179,7 +179,7 @@ static int exynos_mp_cpufreq_init_cal_table(cluster_type cluster)
 		table_size = cal_dfs_get_rate_asv_table(cl_id, ptr_temp_table);
 
 	/* allow extra OC steps at index 0 and 1 */
-	if (ptr->max_idx_num < table_size) {
+	if (ptr->max_idx_num != table_size) {
 		pr_err("%s: DT is not matched cal table size\n", __func__);
 		kfree(ptr_temp_table);
 		return -EINVAL;
@@ -188,12 +188,12 @@ static int exynos_mp_cpufreq_init_cal_table(cluster_type cluster)
 	cal_max_freq = ptr->freq_table[0].frequency;
 
 	for (i = 0; i < ptr->max_idx_num; i++) {
-		if (i >= 2 && ptr->freq_table[i].frequency != (unsigned int)ptr_temp_table[i - 2].rate) {
+		if (i >= 2 && ptr->freq_table[i].frequency != (unsigned int)ptr_temp_table[i].rate) {
 			pr_err("%s: DT is not matched cal frequency_table\n", __func__);
 			kfree(ptr_temp_table);
 			return -EINVAL;
 		} else if (i >= 2) {
-			ptr->volt_table[i] = ptr_temp_table[i - 2].volt;
+			ptr->volt_table[i] = ptr_temp_table[i].volt;
 		}
 	}
 
