@@ -1,4 +1,4 @@
-name: Build Overclocked Kernel
+name: Build Samsung Galaxy A5 Ultra
 
 on:
   workflow_dispatch:
@@ -13,20 +13,131 @@ jobs:
       - name: Build-Pakete installieren
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python2
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python2 fonts-dejavu-core
 
-      - name: Kernel bauen (OneUI 10.0 A5)
+      - name: Samsung Galaxy A5 Ultra Hardware Unlock
+        run: |
+          # 0. Offizieller Kernel-Name: -Samsung-Galaxy-A5-Ultra
+          find arch/arm64/configs -name "*a5y17lte*" -exec sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-Samsung-Galaxy-A5-Ultra"/g' {} +
+
+          # 1. CPU: Sicherer Boot auf 1794/2002 MHz + entsperrte Rekordstufen (2080 / 2054 / 2028 / 2002 MHz)
+          sed -i 's/cl0_boot_max_qos = <2002000>;/cl0_boot_max_qos = <1794000>;/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+          sed -i 's/cl0_boot_min_qos = <2002000>;/cl0_boot_min_qos = <1794000>;/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+          sed -i 's/cl1_boot_max_qos = <2002000>;/cl1_boot_max_qos = <1794000>;/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+          sed -i 's/cl1_boot_min_qos = <2002000>;/cl1_boot_min_qos = <1794000>;/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+
+          sed -i 's/0  2002000  1200000  1014000/0  2080000  1250000  1794000/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+          sed -i 's/1  1872000  1200000  1014000/1  2054000  1237500  1794000/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+          sed -i 's/2  1794000  1100000  1014000/2  2028000  1212500  1794000/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+          sed -i 's/3  1690000  1100000  1014000/3  2002000  1200000  1794000/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+          sed -i 's/1  1924000  1200000  1014000/1  2054000  1237500  1794000/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+
+          sed -i 's/ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate/i >= 4 \&\& ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate/g' drivers/cpufreq/exynos-mp-cpufreq-cal.c
+          sed -i 's/cal_max_freq = ptr_temp_table\[0\].rate;/cal_max_freq = ptr->freq_table\[3\].frequency;/g' drivers/cpufreq/exynos-mp-cpufreq-cal.c
+
+          # 2. LPDDR4 RAM (MIF) auf 1794 MHz + 10ms Sofort-Reaktion (15% Schwelle)
+          sed -i 's/freq_info = <1539000 450000 450000 1539000 450000 1539000>;/freq_info = <1539000 450000 450000 1794000 450000 1794000>;/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+          sed -i 's/upthreshold = <70>;/upthreshold = <15>;/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+          sed -i 's/polling_ms = <0>;/polling_ms = <10>;/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+
+          # 3. Interner System-Bus (INT) auf 624 MHz übertakten + 20% Schwelle
+          sed -i 's/0 534000 900000/0 624000 962500/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+          sed -i 's/freq_info = <534000 134000 134000 534000 134000 534000>;/freq_info = <534000 134000 134000 624000 134000 624000>;/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+          sed -i 's/upthreshold = <95>;/upthreshold = <20>;/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+
+          # 4. Kamera-ISP & Video-MFC-Prozessor übertakten
+          sed -i 's/0 530000 900000/0 580000 950000/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+          sed -i 's/0 468000 900000/0 520000 950000/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+
+          # 5. Mali-T830 GPU: Sicherer Start auf 1138 MHz + entsperrte Spitzen (1248 / 1222 / 1196 / 1138 MHz)
+          sed -i 's/{1138, 950000, 0, 98, 100, 1, 0, 1539000, 400000/{1248, 1000000, 0, 90, 100, 2, 0, 1794000, 624000/g' drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_exynos7880.c
+          sed -i 's/{1086, 925000, 0, 98, 100, 1, 0, 1539000, 400000/{1222, 985000, 0, 90, 100, 2, 0, 1794000, 624000/g' drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_exynos7880.c
+          sed -i 's/{1034, 900000, 0, 98, 100, 1, 0, 1539000, 400000/{1196, 975000, 0, 90, 100, 2, 0, 1794000, 624000/g' drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_exynos7880.c
+          sed -i 's/{962, 875000, 0, 98, 100, 1, 0, 1539000, 400000/{1138, 950000, 0, 90, 100, 2, 0, 1794000, 624000/g' drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_exynos7880.c
+          sed -i 's/{GPU_MAX_CLOCK, 1138}/{GPU_MAX_CLOCK, 1138}/g' drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_exynos7880.c
+          sed -i 's/{GPU_MAX_CLOCK_LIMIT, 1138}/{GPU_MAX_CLOCK_LIMIT, 1248}/g' drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_exynos7880.c
+
+          # 6. Super AMOLED Display auf 72 Hz übertakten
+          find drivers/video -name "*s6e3fa3*.h" -exec sed -i 's/#define S6E3FA3_FPS[[:space:]]*60/#define S6E3FA3_FPS 72/g' {} +
+
+          # 7. Akkusicherer Schnelllade-Boost (1950 mA AC / 850 mA USB)
+          find arch/arm64/boot/dts/exynos -name "*a5y17lte*.dtsi" -exec sed -i 's/battery,input_current_limit = <1650/battery,input_current_limit = <1950/g' {} +
+          find arch/arm64/boot/dts/exynos -name "*a5y17lte*.dtsi" -exec sed -i 's/battery,fast_charging_current = <1650/battery,fast_charging_current = <1950/g' {} +
+          find arch/arm64/boot/dts/exynos -name "*a5y17lte*.dtsi" -exec sed -i 's/<500 500>/<850 850>/g' {} +
+
+          # 8. Flaggschiff-Kernel-Tweaks (BBR, 1000Hz Scheduler, F2FS, LZ4-ZRAM, FIOPS, Cortex-A53 Instruktionen)
+          sed -i 's/-mcpu=generic/-mcpu=cortex-a53+crc+crypto/g' arch/arm64/Makefile || true
+          find arch/arm64/configs -name "*a5y17lte*" -exec sed -i 's/CONFIG_HZ_250=y/# CONFIG_HZ_250 is not set\nCONFIG_HZ_1000=y/g' {} +
+          find arch/arm64/configs -name "*a5y17lte*" -exec sed -i 's/CONFIG_HZ_300=y/# CONFIG_HZ_300 is not set\nCONFIG_HZ_1000=y/g' {} +
+          find arch/arm64/configs -name "*a5y17lte*" -exec sed -i 's/CONFIG_HZ=250/CONFIG_HZ=1000/g' {} +
+          find arch/arm64/configs -name "*a5y17lte*" -exec sed -i 's/CONFIG_HZ=300/CONFIG_HZ=1000/g' {} +
+          find arch/arm64/configs -name "*a5y17lte*" -exec bash -c 'echo -e "\nCONFIG_TCP_CONG_BBR=y\nCONFIG_DEFAULT_BBR=y\nCONFIG_DEFAULT_TCP_CONG=\"bbr\"\nCONFIG_ZRAM_LZ4_COMPRESS=y\nCONFIG_F2FS_FS=y\nCONFIG_DEFAULT_FIOPS=y" >> "$1"' _ {} \;
+
+          # 9. Kontrolliertes Chip-Thermal-Limit (86-92°C)
+          sed -i 's/TEMP_THROTTLING1, 70/TEMP_THROTTLING1, 86/g' drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_exynos7880.c
+          sed -i 's/TEMP_THROTTLING2, 75/TEMP_THROTTLING2, 89/g' drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_exynos7880.c
+          sed -i 's/TEMP_THROTTLING3, 80/TEMP_THROTTLING3, 92/g' drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_exynos7880.c
+
+      - name: Kernel bauen (Samsung Galaxy A5 Ultra)
         run: |
           chmod +x build_rise.sh
           printf "y\n7\na5\nn\n" | ./build_rise.sh
 
-      - name: Build-Log prüfen falls Fehler
-        if: always()
+      - name: All-In-One TWRP Flash-ZIP (Kernel + Bootlogo + System-Identität) bauen
         run: |
-          if [ -f rise/build.log ]; then tail -n 50 rise/build.log; fi
+          mkdir -p flash_zip/META-INF/com/google/android
+          cp rise/boot_*.img flash_zip/boot.img
 
-      - name: Fertige boot.img hochladen
-        uses: actions/upload-artifact@v4
-        with:
-          name: riseKernel-OC-A5-OneUI10
-          path: rise/boot_*.img
+          # Originalgetreues Samsung Galaxy A5 Ultra Bootlogo erstellen
+          convert -size 1080x1920 xc:black \
+            -font DejaVu-Sans-Bold -gravity center -fill white -pointsize 56 -annotate +0-75 "Samsung" \
+            -font DejaVu-Sans-Bold -fill white -pointsize 74 -annotate +0+10 "Galaxy A5" \
+            -font DejaVu-Sans-Bold -fill white -pointsize 54 -annotate +0+95 "Ultra" \
+            -font DejaVu-Sans -fill "#bbbbbb" -pointsize 28 -annotate +0+770 "Secured by Knox" \
+            -font DejaVu-Sans-Bold -fill "#dddddd" -pointsize 32 -annotate +0+825 "Powered by Android" \
+            -quality 92 flash_zip/logo.jpg
+
+          # TWRP Shell-Installer erstellen
+          cat << 'EOF' > flash_zip/META-INF/com/google/android/update-binary
+          #!/sbin/sh
+          OUTFD=/proc/self/fd/$2
+          ZIP="$3"
+          ui_print() { echo "ui_print $1" > $OUTFD; echo "ui_print" > $OUTFD; }
+
+          ui_print "********************************************"
+          ui_print "      Samsung Galaxy A5 Ultra Installer     "
+          ui_print "********************************************"
+
+          mkdir -p /tmp/a5ultra
+          unzip -o "$ZIP" -d /tmp/a5ultra
+
+          ui_print "- Flashe Samsung Galaxy A5 Ultra Kernel..."
+          dd if=/tmp/a5ultra/boot.img of=/dev/block/platform/13540000.dwmmc0/by-name/BOOT
+
+          ui_print "- Installiere Samsung Galaxy A5 Ultra Startlogo..."
+          PARAM_DEV="/dev/block/platform/13540000.dwmmc0/by-name/PARAM"
+          if [ -e "$PARAM_DEV" ]; then
+            dd if="$PARAM_DEV" of=/sdcard/param_backup.bin
+            mkdir -p /tmp/param_work
+            cd /tmp/param_work
+            tar -xf "$PARAM_DEV" 2>/dev/null || true
+            cp /tmp/a5ultra/logo.jpg /tmp/param_work/logo.jpg
+            tar -cf /tmp/new_param.tar *
+            dd if=/tmp/new_param.tar of="$PARAM_DEV"
+          fi
+
+          ui_print "- Setze System-Modellname auf Samsung Galaxy A5 Ultra..."
+          mount /system 2>/dev/null || mount -o rw,remount /system 2>/dev/null || true
+          for PROP in /system/build.prop /system/system/build.prop; do
+            if [ -f "$PROP" ]; then
+              sed -i 's/ro.product.model=.*/ro.product.model=Samsung Galaxy A5 Ultra/g' "$PROP"
+              sed -i 's/ro.product.system.model=.*/ro.product.system.model=Samsung Galaxy A5 Ultra/g' "$PROP"
+              sed -i 's/ro.config.marketing_name=.*/ro.config.marketing_name=Samsung Galaxy A5 Ultra/g' "$PROP"
+            fi
+          done
+
+          rm -rf /tmp/a5ultra /tmp/param_work /tmp/new_param.tar
+          ui_print "- Fertig! Bitte jetzt noch Magisk-ZIP flashen."
+          EOF
+
+          echo "#Dummy" > flash_zip/META-INF/com/google/android/updater-script
