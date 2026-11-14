@@ -176,12 +176,32 @@ static int exynos_mp_cpufreq_init_cal_table(cluster_type cluster)
 	/* allocate to temporary memory for getting table from cal */
 	ptr_temp_table = kzalloc(sizeof(struct dvfs_rate_volt)
 				* ptr->max_idx_num, GFP_KERNEL);
+		table_size = cal_dfs_get_rate_asv_table(cl_id, ptr_temp_table);
 
-	/* bypass cal table check for custom OC frequencies */
+	/* allow extra OC steps at index 0 and 1 */
+	if (ptr->max_idx_num < table_size) {
+		pr_err("%s: DT is not matched cal table size\n", __func__);
+		kfree(ptr_temp_table);
+		return -EINVAL;
+	}
+
 	cal_max_freq = ptr->freq_table[0].frequency;
+
+	for (i = 0; i < ptr->max_idx_num; i++) {
+		if (i >= 2 && ptr->freq_table[i].frequency != (unsigned int)ptr_temp_table[i - 2].rate) {
+			pr_err("%s: DT is not matched cal frequency_table\n", __func__);
+			kfree(ptr_temp_table);
+			return -EINVAL;
+		} else if (i >= 2) {
+			ptr->volt_table[i] = ptr_temp_table[i - 2].volt;
+		}
+	}
+
 	cal_max_support_idx = 0;
 	ptr->max_support_idx = 0;
 	ptr_temp_table[0].rate = cal_max_freq;
+
+
 
 	pr_info("CPUFREQ of %s CAL max_freq %lu KHz, DT max_freq %lu\n",
 			cluster ? "CL1" : "CL0",
