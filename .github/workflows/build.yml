@@ -16,7 +16,7 @@ jobs:
       - name: Build-Pakete & ARM64 Toolchain installieren
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip unzip zlib1g-dev python2 python3-pil gcc-aarch64-linux-gnu
+          sudo apt-get install -y bc bison build-essential ccache curl flex git gnupg gperf imagemagick liblz4-tool libncurses5 libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip unzip zlib1g-dev python2 python3-pil gcc-aarch64-linux-gnu
 
       - name: Samsung Galaxy A5 Ultra Extreme Hardware & Driver Overhaul
         run: |
@@ -95,9 +95,6 @@ jobs:
           make -j$(nproc) Image dtb.img
 
           mkdir -p "$GITHUB_WORKSPACE/output"
-          mkdir -p "$GITHUB_WORKSPACE/ultra_zip/META-INF/com/google/android"
-
-          # Ramdisk & mkbootimg aus dem Repo suchen und echte boot.img bauen
           RAMDISK=$(find . -name "*ramdisk*oneui*10*.gz" -o -name "*ramdisk*10*.cpio.gz" -o -name "*ramdisk*.gz" | head -n 1)
           MKBOOT=$(find . -name "mkbootimg" -type f | head -n 1)
           echo "Nutze Ramdisk: $RAMDISK | mkbootimg: $MKBOOT"
@@ -105,10 +102,6 @@ jobs:
           if [ -n "$MKBOOT" ] && [ -n "$RAMDISK" ]; then
             chmod +x "$MKBOOT"
             "$MKBOOT" --kernel arch/arm64/boot/Image --ramdisk "$RAMDISK" --dt arch/arm64/boot/dtb.img --base 0x10000000 --pagesize 2048 --cmdline "" -o "$GITHUB_WORKSPACE/output/boot_Samsung_Galaxy_A5_Ultra.img"
-          else
-            # Fallback: AnyKernel3-kompatibles Image + dtb bereitstellen
-            cp arch/arm64/boot/Image "$GITHUB_WORKSPACE/output/Image_Samsung_Galaxy_A5_Ultra"
-            cp arch/arm64/boot/dtb.img "$GITHUB_WORKSPACE/output/dtb_Samsung_Galaxy_A5_Ultra.img"
           fi
 
       - name: All-In-One TWRP Flash-ZIP bauen & direkt als Release veröffentlichen
@@ -116,13 +109,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
-          # AnyKernel3 herunterladen fuer universelles TWRP-Flashen ohne Ramdisk-Abhaengigkeit!
           git clone --depth=1 https://github.com "$GITHUB_WORKSPACE/ak3"
           rm -rf "$GITHUB_WORKSPACE/ak3/.git"
           cp arch/arm64/boot/Image "$GITHUB_WORKSPACE/ak3/Image"
           cp arch/arm64/boot/dtb.img "$GITHUB_WORKSPACE/ak3/dtb"
 
-          # AnyKernel3 auf Galaxy A5 (2017) / a5y17lte konfigurieren
           sed -i 's/do.devicecheck=1/do.devicecheck=0/g' "$GITHUB_WORKSPACE/ak3/anykernel.sh"
           sed -i 's|block=/dev/block/platform/omap/omap_hsmmc.0/by-name/boot;|block=/dev/block/platform/13540000.dwmmc0/by-name/BOOT;|g' "$GITHUB_WORKSPACE/ak3/anykernel.sh"
           sed -i 's/is_slot_device=0;/is_slot_device=0;\nramdisk_compression=auto;/g' "$GITHUB_WORKSPACE/ak3/anykernel.sh"
@@ -137,4 +128,6 @@ jobs:
           d.text((290, 1650), "4K UHD Pro Cam  |  Stereo Hi-Fi  |  Exynos Ultra", fill=(110, 110, 110))
           img.save("ak3/logo.jpg", quality=92)
           '
+
+          printf '#!/system/bin/sh\nsleep 20\nsetenforce 0 2>/dev/null\nfor cpu in /sys/devices/system/cpu/cpu[0-7]/cpufreq; do\n  [ -d "$cpu" ] && echo 344000 > "$cpu/scaling_min_freq" 2>/dev/null && echo 2054000 > "$cpu/scaling_max_freq" 2>/dev/null\ndone\nfor gov in /sys/devices/system/cpu/cpu*/cpufreq/interactive; do\n  if [ -d "$gov" ]; then\n    echo 45 > "$gov/go_hispeed_load" 2>/dev/null\n    echo 2054000 > "$gov/hispeed_freq" 2>/dev/null\n    echo 0 > "$gov/above_hispeed_delay" 2>/dev/null\n    echo 10000 > "$gov/timer_rate" 2>/dev/null\n    echo 40000 > "$gov/min_sample_time" 2>/dev/null\n  fi\ndone\nswapoff /dev/block/zram0 2>/dev/null\necho 1 > /sys/block/zram0/reset 2>/dev/null\necho lz4 > /sys/block/zram0/comp_algorithm 2>/dev/null\necho 3221225472 > /sys/block/zram0/disksize 2>/dev/null\nmkswap /dev/block/zram0 2>/dev/null\nswapon /dev/block/zram0 2>/dev/null\necho 100 > /proc/sys/vm/swappiness 2>/dev/null\necho 50 > /proc/sys/vm/vfs_cache_pressure 2>/dev/null\nfor q in /sys/block/mmcblk*/queue; do\n  echo fiops > "$q/scheduler" 2>/dev/null || echo deadline > "$q/scheduler" 2>/dev/null\n  echo 2048 > "$q/read_ahead_kb" 2>/dev/null\n  echo 256 > "$q/nr_requests" 2>/dev/null\n  echo 0 > "$q/iostats" 2>/dev/null\ndone\nfstrim -v /data 2>/dev/null\nfstrim -v /cache 2>/dev/null\nsysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null\nsettings put global window_animation_scale 0.5 2>/dev/null\nsettings put global transition_animation_scale 0.5 2>/dev/null\nsettings put global animator_duration_scale 0.5 2>/dev/null\nsettings put global force_resizable_activities 1 2>/dev/null\nsettings put global enable_freeform_support 1 2>/dev/null\ncmd package bg-dexopt-job 2>/dev/null &\n' > "$GITHUB_WORKSPACE/ak3/ultra_autotune.sh"
 
