@@ -1,61 +1,38 @@
-name: Build Samsung Galaxy A5 Ultra
+name: Patch Original Boot DTB
 on:
   workflow_dispatch:
 permissions:
   contents: write
 jobs:
-  build:
+  patch-dtb:
     runs-on: ubuntu-22.04
     steps:
-      - name: Quellcode laden
+      - name: Repository laden
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - name: Build-Pakete & Toolchain einrichten
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex git gnupg gperf liblz4-tool libncurses5-dev libssl-dev libxml2-utils lzop pngcrush rsync schedtool xsltproc zip unzip zlib1g-dev python2 gcc-9-aarch64-linux-gnu
-          mkdir -p "$GITHUB_WORKSPACE/toolchain"
-          curl -L -f https://github.com -o /tmp/gcc.tar.xz && tar -xf /tmp/gcc.tar.xz -C "$GITHUB_WORKSPACE/toolchain" || true
-      - name: Kernel anpassen & bauen
+      - name: Original-Boot-Image auf 2106 MHz & 1300 MHz patchen
         run: |
           set -e
-          DTS_FILE=$(find arch/arm64/boot/dts -name "exynos7880.dtsi" | head -n 1)
-          GPU_FILE=$(find drivers/gpu/arm -name "gpu_exynos7880.c" | head -n 1)
-          CPU_CAL=$(find drivers/cpufreq -name "exynos-mp-cpufreq-cal.c" | head -n 1)
-          DEFCONFIG=$(find arch/arm64/configs -name "*a5y17lte*" | head -n 1)
-          echo -e "CONFIG_HZ_1000=y\n# CONFIG_HZ_250 is not set\nCONFIG_KSM=y\nCONFIG_CRYPTO_LZ4=y\nCONFIG_TCP_CONG_ADVANCED=y\nCONFIG_TCP_CONG_BBR=y\nCONFIG_DEFAULT_BBR=y\nCONFIG_DEFAULT_TCP_CONG=\"bbr\"" >> "$DEFCONFIG"
-          sed -i 's/cl0_boot_max_qos = <2002000>;/cl0_boot_max_qos = <1794000>;/g; s/cl1_boot_max_qos = <2002000>;/cl1_boot_max_qos = <1794000>;/g; s/0  2002000  1200000  1014000/0  2106000  1300000  1014000/g; s/1  1872000  1200000  1014000/1  2054000  1285000  1014000/g; s/1  1924000  1200000  1014000/1  2054000  1285000  1014000/g' "$DTS_FILE"
-          [ -f "$CPU_CAL" ] && sed -i 's/if (ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/if (i >= 1 \&\& ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/g' "$CPU_CAL"
-          sed -i 's/{1138, 950000, 0, 98, 100, 1, 0, 1539000/{1300, 1075000, 0, 55, 100, 1, 0, 1794000/g; s/{GPU_MAX_CLOCK, 1138}/{GPU_MAX_CLOCK, 950}/g; s/{GPU_MAX_CLOCK_LIMIT, 1138}/{GPU_MAX_CLOCK_LIMIT, 1300}/g; s/{GPU_MAX_VOLTAGE, [0-9]*}/{GPU_MAX_VOLTAGE, 1150000}/g' "$GPU_FILE"
-          find drivers/battery* -type f -name "*.c" -exec sed -i 's/\<1650\>/2400/g; s/\<1800\>/2400/g; s/\<475\>/1100/g' {} + 2>/dev/null || true
-          TC_BIN=$(find "$GITHUB_WORKSPACE/toolchain" -name "*-gcc" 2>/dev/null | head -n 1)
-          if [ -n "$TC_BIN" ]; then export CROSS_COMPILE="${TC_BIN%gcc}"; else export CROSS_COMPILE="/usr/bin/aarch64-linux-gnu-"; sudo ln -sf /usr/bin/aarch64-linux-gnu-gcc-9 /usr/bin/aarch64-linux-gnu-gcc; fi
-          export ARCH=arm64 SUBARCH=arm64
-          BUILD_SCRIPT=$(find . -maxdepth 3 -name "*build*.sh" | head -n 1)
-          if [ -n "$BUILD_SCRIPT" ]; then
-            sed -i "s|CROSS_COMPILE=.*|CROSS_COMPILE=$CROSS_COMPILE|g" "$BUILD_SCRIPT" 2>/dev/null || true
-            chmod +x "$BUILD_SCRIPT"
-            (cd "$(dirname "$BUILD_SCRIPT")" && printf "1\n1\n" | ./"$(basename "$BUILD_SCRIPT")" a5y17lte oneui || ./"$(basename "$BUILD_SCRIPT")") || true
-          fi
-          if [ ! -f arch/arm64/boot/Image ]; then
-            make $(basename "$DEFCONFIG")
-            make -j$(nproc) KCFLAGS="-Wno-error" Image dtbs
-          fi
+          sudo apt-get update && sudo apt-get install -y python3
+          AIK_DIR=$(find . -ipath "*OneUI*" -name "repackimg.sh" -printf "%h\n" | head -n 1)
+          [ -z "$AIK_DIR" ] && AIK_DIR=$(find . -name "repackimg.sh" -printf "%h\n" | tail -n 1)
+          cd "$AIK_DIR"
+          chmod +x repackimg.sh
+          DTB_FILE=$(ls split_img/*-dtb split_img/*-dt 2>/dev/null | head -n 1)
+          python3 -c '
+          data = open("'"$DTB_FILE"'", "rb").read()
+          data = data.replace((2002000).to_bytes(4, "big"), (2106000).to_bytes(4, "big"))
+          data = data.replace((1924000).to_bytes(4, "big"), (2054000).to_bytes(4, "big"))
+          data = data.replace((1872000).to_bytes(4, "big"), (2054000).to_bytes(4, "big"))
+          data = data.replace((1138).to_bytes(4, "big"), (1300).to_bytes(4, "big"))
+          data = data.replace((1086).to_bytes(4, "big"), (1248).to_bytes(4, "big"))
+          open("'"$DTB_FILE"'", "wb").write(data)
+          '
+          ./repackimg.sh
           mkdir -p "$GITHUB_WORKSPACE/output"
-          AIK_DIR=$(find "$GITHUB_WORKSPACE/rise" -ipath "*OneUI*" -name "repackimg.sh" -printf "%h\n" | head -n 1)
-          [ -z "$AIK_DIR" ] && AIK_DIR=$(find "$GITHUB_WORKSPACE" -name "repackimg.sh" -printf "%h\n" | tail -n 1)
-          if [ -n "$AIK_DIR" ] && [ -f arch/arm64/boot/Image ]; then
-            cp arch/arm64/boot/Image "$AIK_DIR/split_img/boot.img-zImage"
-            DTB_FILE=$(find arch/arm64/boot -name "*.dtb" | head -n 1)
-            [ -n "$DTB_FILE" ] && cp "$DTB_FILE" "$AIK_DIR/split_img/boot.img-dtb"
-            (cd "$AIK_DIR" && chmod +x repackimg.sh && ./repackimg.sh) || true
-          fi
-          NEW_BOOT=$(ls -t $(find "$GITHUB_WORKSPACE" -type f -name "*.img") 2>/dev/null | head -n 1)
-          cp "$NEW_BOOT" "$GITHUB_WORKSPACE/output/boot_Samsung_Galaxy_A5_Ultra_GCC9.img"
-          printf "SEANDROIDENFORCE" >> "$GITHUB_WORKSPACE/output/boot_Samsung_Galaxy_A5_Ultra_GCC9.img"
-      - name: Als GitHub Artifact bereitstellen
+          cp image-new.img "$GITHUB_WORKSPACE/output/boot_A5_Ultra_DTB_OC.img"
+          printf "SEANDROIDENFORCE" >> "$GITHUB_WORKSPACE/output/boot_A5_Ultra_DTB_OC.img"
+      - name: Gepatchtes Boot-Image bereitstellen
         uses: actions/upload-artifact@v4
         with:
-          name: Samsung-Galaxy-A5-Ultra-GCC9
+          name: Samsung-Galaxy-A5-Ultra-DTB-OC
           path: output/
