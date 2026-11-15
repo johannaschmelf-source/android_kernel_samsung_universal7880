@@ -17,9 +17,9 @@ jobs:
 
       - name: Echtes Original-build_rise.sh aus dem Basis-Commit wiederherstellen
         run: |
-          FIRST_COMMIT=$(git rev-list --max-parents=0 HEAD | tail -n 1)
-          echo "Stelle originales build_rise.sh aus Commit $FIRST_COMMIT wieder her..."
-          git checkout "$FIRST_COMMIT" -- build_rise.sh
+          ORIG_COMMIT=$(git log --reverse --pretty=format:%H -- build_rise.sh | head -n 1)
+          echo "Stelle originales build_rise.sh aus Commit $ORIG_COMMIT wieder her..."
+          git checkout "$ORIG_COMMIT" -- build_rise.sh
           chmod +x build_rise.sh
 
       - name: Build-Pakete installieren
@@ -43,11 +43,9 @@ jobs:
           echo "CONFIG_CRYPTO_CRC32C=y" >> "$DEFCONFIG"
           echo "CONFIG_CRYPTO_LZ4=y" >> "$DEFCONFIG"
 
-          # 80Hz Super-AMOLED Overclocking & High Brightness Mode (HBM)
           find arch/arm64/boot/dts -type f -name "*.dts*" -exec sed -i 's/refresh = <60>;/refresh = <80>;/g; s/fps = <60>;/fps = <80>;/g; s/panel-refresh-rate = <60>;/panel-refresh-rate = <80>;/g' {} + 2>/dev/null || true
           find drivers/video/fbdev/exynos -type f -name "*.c" -exec sed -i 's/hbm_mode = 0/hbm_mode = 1/g' {} + 2>/dev/null || true
 
-          # CPU auf 2054 MHz & 2002 MHz (sicherer Boot auf 1794 MHz)
           sed -i 's/cl0_boot_max_qos = <2002000>;/cl0_boot_max_qos = <1794000>;/g' "$DTS_FILE"
           sed -i 's/cl1_boot_max_qos = <2002000>;/cl1_boot_max_qos = <1794000>;/g' "$DTS_FILE"
           sed -i 's/0  2002000  1200000  1014000/0  2054000  1250000  1014000/g' "$DTS_FILE"
@@ -57,31 +55,25 @@ jobs:
             sed -i 's/if (ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/if (i >= 1 \&\& ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/g' "$CPU_CAL"
           fi
 
-          # GPU Limit-Break: 1248 MHz & 1196 MHz + 1794 MHz RAM + 1125mV Max-Spannung
           sed -i 's/{1138, 950000, 0, 98, 100, 1, 0, 1539000/{1248, 1035000, 0, 98, 100, 1, 0, 1794000/g' "$GPU_FILE"
           sed -i 's/{1086, 925000, 0, 98, 100, 1, 0, 1539000/{1196, 995000, 0, 98, 100, 1, 0, 1794000/g' "$GPU_FILE"
           sed -i 's/{GPU_MAX_CLOCK, 1138}/{GPU_MAX_CLOCK, 1196}/g' "$GPU_FILE"
           sed -i 's/{GPU_MAX_CLOCK_LIMIT, 1138}/{GPU_MAX_CLOCK_LIMIT, 1248}/g' "$GPU_FILE"
           sed -i 's/{GPU_MAX_VOLTAGE, [0-9]*}/{GPU_MAX_VOLTAGE, 1125000}/g' "$GPU_FILE"
 
-          # LPDDR4 RAM-Takt (MIF) auf 1794 MHz
           sed -i 's/freq_info = <1539000 450000 450000 1539000 450000 1539000>;/freq_info = <1539000 450000 450000 1794000 450000 1794000>;/g' "$DTS_FILE"
 
-          # Input-Booster, Touchscreen & Fingerprint beschleunigen
           find arch/arm64/boot/dts -type f -name "*.dts*" -exec sed -i 's/ibi,cpu_freq = <[^>]*>/ibi,cpu_freq = <2054000 1794000 0>/g; s/ibi,mif_freq = <[^>]*>/ibi,mif_freq = <1794000 1539000 0>/g' {} + 2>/dev/null || true
           find drivers/fingerprint -type f -name "*.c" -exec sed -i 's/msleep(20)/msleep(5)/g; s/msleep(10)/msleep(3)/g' {} + 2>/dev/null || true
           find drivers/input/touchscreen -type f -name "*.c" -exec sed -i 's/msleep(20)/msleep(5)/g; s/msleep(15)/msleep(4)/g' {} + 2>/dev/null || true
 
-          # Thermal-Throttling entfesseln (erst ab 95 Grad)
           sed -i 's/{TEMP_THROTTLING1, [0-9]*}/{TEMP_THROTTLING1, 95}/g' "$GPU_FILE"
           sed -i 's/{TEMP_THROTTLING2, [0-9]*}/{TEMP_THROTTLING2, 97}/g' "$GPU_FILE"
           sed -i 's/{TEMP_THROTTLING3, [0-9]*}/{TEMP_THROTTLING3, 99}/g' "$GPU_FILE"
           sed -i 's/{TEMP_THROTTLING4, [0-9]*}/{TEMP_THROTTLING4, 101}/g' "$GPU_FILE"
 
-          # Ladeelektronik (S2MU004) auf 2500 mA Fast-Charge & 1200 mA USB entsperren
           find drivers/battery* -type f -name "*.c" -exec sed -i 's/\<1650\>/2500/g; s/\<1800\>/2500/g; s/\<475\>/1200/g' {} + 2>/dev/null || true
 
-          # 1000Hz Ultra-Timer, eMMC No-CRC Speicher-Turbo & Google BBR Netzwerk-Stack
           echo "CONFIG_HZ_1000=y" >> "$DEFCONFIG"
           echo "# CONFIG_HZ_250 is not set" >> "$DEFCONFIG"
           echo "# CONFIG_MMC_SPI_CRC_ON is not set" >> "$DEFCONFIG"
