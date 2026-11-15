@@ -15,12 +15,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Originale build_rise.sh aus Git-Historie wiederherstellen
+      - name: Echtes Original-build_rise.sh aus dem Basis-Commit wiederherstellen
         run: |
-          if grep -q "workflow_dispatch" build_rise.sh 2>/dev/null; then
-            BAD_COMMIT=$(git log -n 1 --pretty=format:%H -- build_rise.sh)
-            git checkout "${BAD_COMMIT}^" -- build_rise.sh
-          fi
+          FIRST_COMMIT=$(git rev-list --max-parents=0 HEAD | tail -n 1)
+          echo "Stelle originales build_rise.sh aus Commit $FIRST_COMMIT wieder her..."
+          git checkout "$FIRST_COMMIT" -- build_rise.sh
           chmod +x build_rise.sh
 
       - name: Build-Pakete installieren
