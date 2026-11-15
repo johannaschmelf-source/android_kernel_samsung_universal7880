@@ -12,10 +12,15 @@ jobs:
     steps:
       - name: Quellcode laden
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Originale build_rise.sh absichern
+      - name: Originale build_rise.sh aus Git-Historie wiederherstellen
         run: |
-          curl -fsSL https://githubusercontent.com -o build_rise.sh
+          if grep -q "workflow_dispatch" build_rise.sh 2>/dev/null; then
+            BAD_COMMIT=$(git log -n 1 --pretty=format:%H -- build_rise.sh)
+            git checkout "${BAD_COMMIT}^" -- build_rise.sh
+          fi
           chmod +x build_rise.sh
 
       - name: Build-Pakete installieren
