@@ -1,308 +1,112 @@
-#!/bin/bash
+name: Build Samsung Galaxy A5 Ultra
 
-# Set to y to see output of make in terminal
-debug=n
-dtbpath=arch/arm64/boot/dtb.img
-imagepath=arch/arm64/boot/Image
-aikpath=rise/AIK
+on:
+  workflow_dispatch:
 
-buildDate=$(date '+%Y%m%d')
+permissions:
+  contents: write
 
-riseVer=v1.11
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Quellcode laden
+        uses: actions/checkout@v4
 
-deviceArray=(a5 a7)
+      - name: Build-Pakete installieren
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip unzip zlib1g-dev python2 python3-pil
 
-# Set ARCH, toolchain path and android version
-export ARCH=arm64
-export SUBARCH=arm64
-export ANDROID_MAJOR_VERSION=p
+      - name: Samsung Galaxy A5 Ultra Extreme Hardware & Driver Overhaul
+        run: |
+          set -e
+          DTS_FILE=$(find arch/arm64/boot/dts -name "exynos7880.dtsi" | head -n 1)
+          GPU_FILE=$(find drivers/gpu/arm -name "gpu_exynos7880.c" | head -n 1)
+          CPU_CAL=$(find drivers/cpufreq -name "exynos-mp-cpufreq-cal.c" | head -n 1)
+          DEFCONFIG=$(find arch/arm64/configs -name "*a5y17lte*" | head -n 1)
 
-# Colors
-RED='\033[0;31m'
-NC='\033[0m'
+          test -f "$DTS_FILE" && test -f "$GPU_FILE" && test -f "$DEFCONFIG"
 
-if [ ! -d ../toolchain/ ]; then
-    read -p "Toolchain not found! Download now? [Y/n] " tc
+          sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-Samsung-Galaxy-A5-Ultra-80Hz"/g' "$DEFCONFIG"
+          grep -q "CONFIG_LOCALVERSION=" "$DEFCONFIG" || echo 'CONFIG_LOCALVERSION="-Samsung-Galaxy-A5-Ultra-80Hz"' >> "$DEFCONFIG"
+          echo "CONFIG_SECURITY_SELINUX_DEVELOP=y" >> "$DEFCONFIG"
+          echo "CONFIG_CRYPTO_CRC32C=y" >> "$DEFCONFIG"
+          echo "CONFIG_CRYPTO_LZ4=y" >> "$DEFCONFIG"
 
-    rm -rf ../toolchain/
+          # 80Hz Super-AMOLED Overclocking & High Brightness Mode (HBM)
+          find arch/arm64/boot/dts -type f -name "*.dts*" -exec sed -i 's/refresh = <60>;/refresh = <80>;/g; s/fps = <60>;/fps = <80>;/g; s/panel-refresh-rate = <60>;/panel-refresh-rate = <80>;/g' {} + 2>/dev/null || true
+          find drivers/video/fbdev/exynos -type f -name "*.c" -exec sed -i 's/hbm_mode = 0/hbm_mode = 1/g' {} + 2>/dev/null || true
 
-    if [[ "$tc" == "Y" || "$tc" == "y" ]]; then
-        if [[ `which git` == *"git"* ]]; then
-            git clone https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 -b lineage-19.0 ../toolchain
-            export CROSS_COMPILE=$PWD/../toolchain/bin/aarch64-linux-android-
-        else
-            echo "git is not installed, can't download toolchain!"
-            exit
-        fi
-    elif [[ "$tc" == "N" || "$tc" == "n" ]]; then
-        echo "WARN: Builds will fail without a toolchain!"
-        export CROSS_COMPILE=/media/simon/Linux_data/android-build-tools/ubertc4/bin/aarch64-linux-android-
-    else
-        echo "Wrong input: $tc"
-        exit
-    fi
-else
-    export CROSS_COMPILE=$PWD/../toolchain/bin/aarch64-linux-android-
-fi
+          # CPU auf 2054 MHz & 2002 MHz (sicherer Boot auf 1794 MHz)
+          sed -i 's/cl0_boot_max_qos = <2002000>;/cl0_boot_max_qos = <1794000>;/g' "$DTS_FILE"
+          sed -i 's/cl1_boot_max_qos = <2002000>;/cl1_boot_max_qos = <1794000>;/g' "$DTS_FILE"
+          sed -i 's/0  2002000  1200000  1014000/0  2054000  1250000  1014000/g' "$DTS_FILE"
+          sed -i 's/1  1872000  1200000  1014000/1  2002000  1200000  1014000/g' "$DTS_FILE"
+          sed -i 's/1  1924000  1200000  1014000/1  2002000  1200000  1014000/g' "$DTS_FILE"
+          if [ -f "$CPU_CAL" ]; then
+            sed -i 's/if (ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/if (i >= 1 \&\& ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/g' "$CPU_CAL"
+          fi
 
-SET_LOCALVERSION() {
-    sed -i 's|CONFIG_LOCALVERSION=""|CONFIG_LOCALVERSION="-riseKernel-'$1'.0-'$riseVer'"|g' arch/arm64/configs/rise-$2y17lte_defconfig
-}
+          # GPU Limit-Break: 1248 MHz & 1196 MHz + 1794 MHz RAM + 1125mV Max-Spannung
+          sed -i 's/{1138, 950000, 0, 98, 100, 1, 0, 1539000/{1248, 1035000, 0, 98, 100, 1, 0, 1794000/g' "$GPU_FILE"
+          sed -i 's/{1086, 925000, 0, 98, 100, 1, 0, 1539000/{1196, 995000, 0, 98, 100, 1, 0, 1794000/g' "$GPU_FILE"
+          sed -i 's/{GPU_MAX_CLOCK, 1138}/{GPU_MAX_CLOCK, 1196}/g' "$GPU_FILE"
+          sed -i 's/{GPU_MAX_CLOCK_LIMIT, 1138}/{GPU_MAX_CLOCK_LIMIT, 1248}/g' "$GPU_FILE"
+          sed -i 's/{GPU_MAX_VOLTAGE, [0-9]*}/{GPU_MAX_VOLTAGE, 1125000}/g' "$GPU_FILE"
 
-BUILD_BOOT() {
-    variant=$1
-    dev=$2
-    full=$3
-    
-    if [ -f rise/build.log ]; then
-        rm rise/build.log
-    fi
-    
-    if [ -f rise/build.info ]; then
-        rm rise/build.info
-    fi
+          # LPDDR4 RAM-Takt (MIF) auf 1794 MHz
+          sed -i 's/freq_info = <1539000 450000 450000 1539000 450000 1539000>;/freq_info = <1539000 450000 450000 1794000 450000 1794000>;/g' "$DTS_FILE"
 
-    if [ -f arch/arm64/configs/tmp_defconfig ]; then
-        rm arch/arm64/configs/tmp_defconfig
-    fi
+          # Input-Booster, Touchscreen, Fingerprint & Haptik-Motor beschleunigen
+          find arch/arm64/boot/dts -type f -name "*.dts*" -exec sed -i 's/ibi,cpu_freq = <[^>]*>/ibi,cpu_freq = <2054000 1794000 0>/g; s/ibi,mif_freq = <[^>]*>/ibi,mif_freq = <1794000 1539000 0>/g' {} + 2>/dev/null || true
+          find drivers/fingerprint -type f -name "*.c" -exec sed -i 's/msleep(20)/msleep(5)/g; s/msleep(10)/msleep(3)/g' {} + 2>/dev/null || true
+          find drivers/input/touchscreen -type f -name "*.c" -exec sed -i 's/msleep(20)/msleep(5)/g; s/msleep(15)/msleep(4)/g' {} + 2>/dev/null || true
 
-    if [[ "$full" == "y" ]]; then
-        echo "full=y" > rise/build.info
-    else
-        echo "full=n" > rise/build.info
-    fi
+          # Thermal-Throttling entfesseln (erst ab 95 Grad)
+          sed -i 's/{TEMP_THROTTLING1, [0-9]*}/{TEMP_THROTTLING1, 95}/g' "$GPU_FILE"
+          sed -i 's/{TEMP_THROTTLING2, [0-9]*}/{TEMP_THROTTLING2, 97}/g' "$GPU_FILE"
+          sed -i 's/{TEMP_THROTTLING3, [0-9]*}/{TEMP_THROTTLING3, 99}/g' "$GPU_FILE"
+          sed -i 's/{TEMP_THROTTLING4, [0-9]*}/{TEMP_THROTTLING4, 101}/g' "$GPU_FILE"
 
-    echo "variant=$variant" >> rise/build.info
-    echo "device=$dev" >> rise/build.info
+          # Ladeelektronik (S2MU004) auf 2500 mA Fast-Charge & 1200 mA USB entsperren
+          find drivers/battery* -type f -name "*.c" -exec sed -i 's/\<1650\>/2500/g; s/\<1800\>/2500/g; s/\<475\>/1200/g' {} + 2>/dev/null || true
 
-    # Set android version shown in localversion
-    if echo "$variant" | grep -q "10"; then
-       androidVer="10"
-    elif echo "$variant" | grep -q "11"; then
-       androidVer="11"
-    elif echo "$variant" | grep -q "12"; then
-       androidVer="12"
-    elif echo "$variant" | grep -q "13"; then
-       androidVer="13"
-    fi
+          # 1000Hz Ultra-Timer, eMMC No-CRC Speicher-Turbo & Google BBR Netzwerk-Stack
+          echo "CONFIG_HZ_1000=y" >> "$DEFCONFIG"
+          echo "# CONFIG_HZ_250 is not set" >> "$DEFCONFIG"
+          echo "# CONFIG_MMC_SPI_CRC_ON is not set" >> "$DEFCONFIG"
+          echo "CONFIG_TCP_CONG_ADVANCED=y" >> "$DEFCONFIG"
+          echo "CONFIG_TCP_CONG_BBR=y" >> "$DEFCONFIG"
+          echo "CONFIG_DEFAULT_BBR=y" >> "$DEFCONFIG"
+          echo 'CONFIG_DEFAULT_TCP_CONG="bbr"' >> "$DEFCONFIG"
+          find drivers/mmc -type f -name "*.c" -exec sed -i 's/bool use_spi_crc = 1;/bool use_spi_crc = 0;/g' {} + 2>/dev/null || true
 
-    SET_LOCALVERSION $androidVer $dev
+      - name: Kernel bauen (Samsung Galaxy A5 Ultra)
+        run: |
+          chmod +x build_rise.sh
+          printf "y\n7\na5\nn\nn\n" | ./build_rise.sh
 
-    if [[ "$variant" == "AOSP "$androidVer".0" ]] || [[ "$variant" == "AOSP 12.0/12.1" ]] || [[ "$variant" == "OneUI "$androidVer".0" ]]; then
-        cat arch/arm64/boot/dts/exynos7880-"$dev"y17lte_lineage_oneui.dtsi > arch/arm64/boot/dts/exynos7880-"$dev"y17lte_common.dtsi
-        cat arch/arm64/configs/rise-"$dev"y17lte_defconfig >> arch/arm64/configs/tmp_defconfig
+      - name: All-In-One TWRP Flash-ZIP bauen & direkt als Release veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          mkdir -p "$GITHUB_WORKSPACE/output"
+          mkdir -p "$GITHUB_WORKSPACE/ultra_zip/META-INF/com/google/android"
+          cp "$GITHUB_WORKSPACE/rise/boot_oneui_10.0_a5.img" "$GITHUB_WORKSPACE/ultra_zip/boot.img"
+          cp "$GITHUB_WORKSPACE/rise/boot_oneui_10.0_a5.img" "$GITHUB_WORKSPACE/output/boot_Samsung_Galaxy_A5_Ultra.img"
 
-        if [[ "$variant" == "AOSP "$androidVer".0" ]] || [[ "$variant" == "AOSP 12.0/12.1" ]]; then
-            cat arch/arm64/configs/lineage_defconfig >> arch/arm64/configs/tmp_defconfig
-        elif [[ "$variant" == "OneUI "$androidVer".0" ]]; then
-            cat arch/arm64/configs/oneui_defconfig >> arch/arm64/configs/tmp_defconfig
-        fi
+          python3 -c '
+          from PIL import Image, ImageDraw
+          img = Image.new("RGB", (1080, 1920), "black")
+          d = ImageDraw.Draw(img)
+          d.text((430, 780), "SAMSUNG", fill="white")
+          d.text((340, 860), "GALAXY A5 ULTRA", fill=(0, 168, 255))
+          d.text((250, 950), "80Hz AMOLED  |  2054MHz CPU  |  1248MHz GPU", fill=(180, 180, 180))
+          d.text((290, 1650), "4K UHD Pro Cam  |  Stereo Hi-Fi  |  Exynos Ultra", fill=(110, 110, 110))
+          img.save("ultra_zip/logo.jpg", quality=92)
+          '
 
-    elif [[ "$variant" == "Treble "$androidVer".0" ]]; then
-        cat arch/arm64/boot/dts/exynos7880-"$dev"y17lte_treble.dtsi > arch/arm64/boot/dts/exynos7880-"$dev"y17lte_common.dtsi
-        cat arch/arm64/configs/rise-"$dev"y17lte_defconfig >> arch/arm64/configs/tmp_defconfig
-
-        cat arch/arm64/configs/treble_defconfig >> arch/arm64/configs/tmp_defconfig
-    fi
-
-    if [[ "$variant" == "AOSP 12.0/12.1" ]] || [[ "$variant" == "AOSP 13.0" ]]; then
-
-        # Force permissive for AOSP 12.0/12.1/13.0 since SePolicy is not written (yet?)
-        sed -i 's|# CONFIG_FORCE_PERMISSIVE is not set|CONFIG_FORCE_PERMISSIVE=y|g' arch/arm64/configs/tmp_defconfig
-
-        # Disable CONFIG_RT_GROUP_SCHED
-        # Yet to figure out if this is actually needed
-        sed -i 's|CONFIG_RT_GROUP_SCHED=y|# CONFIG_RT_GROUP_SCHED is not set|g' arch/arm64/configs/tmp_defconfig
-    fi
-
-    if [[ "$variant" == "AOSP 13.0" ]]; then
-        sed -i 's|# CONFIG_STORE_MODE is not set|CONFIG_STORE_MODE=y|g' arch/arm64/configs/tmp_defconfig
-    fi
-
-    make tmp_defconfig &> rise/build.log
-
-    clear
-    echo "Target: $variant for $dev"
-    echo "Building..."
-
-    if [[ "$debug" == "n" ]]; then
-        make -j64 &> rise/build.log
-    elif [[ "$debug" == "y" ]]; then
-        make -j64
-    fi
-
-    # Show error when the build failed
-    if [ ! -f arch/arm64/boot/Image ]; then
-        clear
-        printf "${RED}ERROR${NC} encountered during build!\nSee rise/build.log for more information\n"
-        exit
-    fi
-
-    rm arch/arm64/boot/dts/exynos7880-"$dev"y17lte_common.dtsi
-    
-    rm arch/arm64/configs/tmp_defconfig
-
-    echo "Packing boot.img..."
-
-    if [[ "$variant" == "AOSP "$androidVer".0" ]] || [[ "$variant" == "AOSP 12.0/12.1" ]]; then
-        secVar="Lineage_"$androidVer".0"
-    elif [[ "$variant" == "OneUI "$androidVer".0" ]]; then
-        secVar="OneUI_"$androidVer".0"
-    elif [[ "$variant" == "Treble "$androidVer".0" ]]; then
-        secVar="Treble_"$androidVer".0"
-    fi
-
-    cp $imagepath $aikpath/$secVar/split_img/boot.img-zImage
-    cp $dtbpath $aikpath/$secVar/split_img/boot.img-dt
-    chmod +x $aikpath/$secVar/repackimg.sh
-    $aikpath/$secVar/repackimg.sh
-
-    clear
-
-    secVar=$(echo "$secVar" | tr '[:upper:]' '[:lower:]')
-
-    printf "\nOutput file is rise/boot_"$secVar"_"$dev".img\n\n"
-}
-
-BUILD_ALL() {
-    if [ -f rise/build.log ]; then
-        rm rise/build.log
-    fi
-    
-    if [ -f rise/build.info ]; then
-        rm rise/build.info
-    fi
-
-    if [ -f arch/arm64/configs/tmp_defconfig ]; then
-        rm arch/arm64/configs/tmp_defconfig
-    fi
-
-    echo "Building..."
-
-    for i in ${deviceArray[@]}; do
-        BUILD_BOOT "AOSP 13.0" "$i" "y"
-        ./cleanup.sh > /dev/null 2>&1
-
-        BUILD_BOOT "AOSP 12.0/12.1" "$i" "y"
-        ./cleanup.sh > /dev/null 2>&1
-
-        BUILD_BOOT "AOSP 11.0" "$i" "y"
-        ./cleanup.sh > /dev/null 2>&1
-
-        BUILD_BOOT "AOSP 10.0" "$i" "y"
-        ./cleanup.sh > /dev/null 2>&1
-
-        BUILD_BOOT "OneUI 10.0" "$i" "y"
-        ./cleanup.sh > /dev/null 2>&1
-
-    done
-
-    clear
-
-    ./rise/zip/zip.sh $riseVer $buildDate
-}
-
-clear
-echo "Select build variant: [1-8] "
-
-select opt in "AOSP 13.0" "AOSP 12.0/12.1" "AOSP 11.0" "AOSP 10.0" "Treble 11.0" "Treble 10.0" "OneUI 10.0" "Installation zip"
-do
-
-    clear
-    echo "Selected: $opt"
-
-    case $opt in
-    "AOSP 13.0")
-	read -p "Enter device: [A5/A7] " device
-	if [[ "$device" == "A5" || "$device" == "a5" ]]; then
-	    BUILD_BOOT "AOSP 13.0" "a5"
-	elif [[ "$device" == "A7" || "$device" == "a7" ]]; then
-	    BUILD_BOOT "AOSP 13.0" "a7"
-	else
-	    echo "Unknown device: $device"
-	fi
-	break ;;
-
-    "AOSP 12.0/12.1")
-	read -p "Enter device: [A5/A7] " device
-	if [[ "$device" == "A5" || "$device" == "a5" ]]; then
-	    BUILD_BOOT "AOSP 12.0/12.1" "a5"
-	elif [[ "$device" == "A7" || "$device" == "a7" ]]; then
-	    BUILD_BOOT "AOSP 12.0/12.1" "a7"
-	else
-	    echo "Unknown device: $device"
-	fi
-	break ;;
-
-    "AOSP 11.0")
-	read -p "Enter device: [A5/A7] " device
-	if [[ "$device" == "A5" || "$device" == "a5" ]]; then
-	    BUILD_BOOT "AOSP 11.0" "a5"
-	elif [[ "$device" == "A7" || "$device" == "a7" ]]; then
-	    BUILD_BOOT "AOSP 11.0" "a7"
-	else
-	    echo "Unknown device: $device"
-	fi
-	break ;;
-
-    "AOSP 10.0")
-	read -p "Enter device: [A5/A7] " device
-	if [[ "$device" == "A5" || "$device" == "a5" ]]; then
-	    BUILD_BOOT "AOSP 10.0" "a5"
-	elif [[ "$device" == "A7" || "$device" == "a7" ]]; then
-	    BUILD_BOOT "AOSP 10.0" "a7"
-	else
-	    echo "Unknown device: $device"
-	fi
-	break ;;
-
-    "Treble 11.0")
-	read -p "Enter device: [A5/A7] " device
-	if [[ "$device" == "A5" || "$device" == "a5" ]]; then
-	    BUILD_BOOT "Treble 11.0" "a5"
-	elif [[ "$device" == "A7" || "$device" == "a7" ]]; then
-	    BUILD_BOOT "Treble 11.0" "a7"
-	else
-	    echo "Unknown device: $device"
-	fi
-	break ;;
-
-    "Treble 10.0")
-	read -p "Enter device: [A5/A7] " device
-	if [[ "$device" == "A5" || "$device" == "a5" ]]; then
-	    BUILD_BOOT "Treble 10.0" "a5"
-	elif [[ "$device" == "A7" || "$device" == "a7" ]]; then
-	    BUILD_BOOT "Treble 10.0" "a7"
-	else
-	    echo "Unknown device: $device"
-	fi
-	break ;;
-
-    "OneUI 10.0")
-	read -p "Enter device: [A5/A7] " device
-	if [[ "$device" == "A5" || "$device" == "a5" ]]; then
-	    BUILD_BOOT "OneUI 10.0" "a5"
-	elif [[ "$device" == "A7" || "$device" == "a7" ]]; then
-	    BUILD_BOOT "OneUI 10.0" "a7"
-	else
-	    echo "Unknown device: $device"
-	fi
-	break ;;
-
-    "Installation zip")
-        BUILD_ALL
-	break
-    esac
-done
-
-echo "Build finished"
-
-read -p "Clean build directory? [Y/n] " clean
-if [[ "$clean" = "Y" || "$clean" = "y" ]]; then
-    ./cleanup.sh > /dev/null 2>&1
-elif [[ "$clean" = "N" || "$clean" = "n" ]]; then
-    exit
-else
-    printf "Wrong entry '$clean'. Did you mean 'Y'?\nIf so, run cleanup.sh manually\n"
-fi
+          printf '#!/system/bin/sh\nsleep 20\nsetenforce 0 2>/dev/null\nfor cpu in /sys/devices/system/cpu/cpu[0-7]/cpufreq; do\n  [ -d "$cpu" ] && echo 344000 > "$cpu/scaling_min_freq" 2>/dev/null && echo 2054000 > "$cpu/scaling_max_freq" 2>/dev/null\ndone\nfor gov in /sys/devices/system/cpu/cpu*/cpufreq/interactive; do\n  if [ -d "$gov" ]; then\n    echo 45 > "$gov/go_hispeed_load" 2>/dev/null\n    echo 2054000 > "$gov/hispeed_freq" 2>/dev/null\n    echo 0 > "$gov/above_hispeed_delay" 2>/dev/null\n    echo 10000 > "$gov/timer_rate" 2>/dev/null\n    echo 40000 > "$gov/min_sample_time" 2>/dev/null\n  fi\ndone\nswapoff /dev/block/zram0 2>/dev/null\necho 1 > /sys/block/zram0/reset 2>/dev/null\necho lz4 > /sys/block/zram0/comp_algorithm 2>/dev/null\necho 3221225472 > /sys/block/zram0/disksize 2>/dev/null\nmkswap /dev/block/zram0 2>/dev/null\nswapon /dev/block/zram0 2>/dev/null\necho 100 > /proc/sys/vm/swappiness 2>/dev/null\necho 50 > /proc/sys/vm/vfs_cache_pressure 2>/dev/null\nfor q in /sys/block/mmcblk*/queue; do\n  echo fiops > "$q/scheduler" 2>/dev/null || echo deadline > "$q/scheduler" 2>/dev/null\n  echo 2048 > "$q/read_ahead_kb" 2>/dev/null\n  echo 256 > "$q/nr_requests" 2>/dev/null\n  echo 0 > "$q/iostats" 2>/dev/null\ndone\nfstrim -v /data 2>/dev/null\nfstrim -v /cache 2>/dev/null\nsysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null\nsettings put global window_animation_scale 0.5 2>/dev/null\nsettings put global transition_animation_scale 0.5 2>/dev/null\nsettings put global animator_duration_scale 0.5 2>/dev/null\nsettings put global force_resizable_activities 1 2>/dev/null\nsettings put global enable_freeform_support 1 2>/dev/null\ncmd package bg-dexopt-job 2>/dev/null &\n' > "$GITHUB_WORKSPACE/ultra_zip/ultra_autotune.sh"
 
