@@ -4,7 +4,7 @@ on:
 permissions:
   contents: write
 jobs:
-    patch-dtb:
+  patch-dtb:
     runs-on: ubuntu-22.04
     steps:
       - name: Repository laden
