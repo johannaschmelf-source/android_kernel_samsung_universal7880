@@ -13,7 +13,7 @@ jobs:
       - name: Build-Pakete installieren
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python2 python3-pil
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip unzip zlib1g-dev python2 python3-pil
 
       - name: Samsung Galaxy A5 Ultra Adaptive Flagship Hardware Unlock
         run: |
@@ -46,7 +46,7 @@ jobs:
             sed -i 's/if (ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/if (i >= 1 \&\& ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/g' "$CPU_CAL"
           fi
 
-          # 4. GPU Limit-Break (sauberes 1:1 Ersetzen ohne Steuerzeichen): 1248 MHz & 1196 MHz + 1794 MHz RAM
+          # 4. GPU Limit-Break: 1248 MHz & 1196 MHz + 1794 MHz RAM
           sed -i 's/{1138, 950000, 0, 98, 100, 1, 0, 1539000/{1248, 1025000, 0, 98, 100, 1, 0, 1794000/g' "$GPU_FILE"
           sed -i 's/{1086, 925000, 0, 98, 100, 1, 0, 1539000/{1196, 990000, 0, 98, 100, 1, 0, 1794000/g' "$GPU_FILE"
           sed -i 's/{GPU_MAX_CLOCK, 1138}/{GPU_MAX_CLOCK, 1196}/g' "$GPU_FILE"
@@ -67,7 +67,7 @@ jobs:
           sed -i 's/{TEMP_THROTTLING3, [0-9]*}/{TEMP_THROTTLING3, 99}/g' "$GPU_FILE"
           sed -i 's/{TEMP_THROTTLING4, [0-9]*}/{TEMP_THROTTLING4, 101}/g' "$GPU_FILE"
 
-          # 8. Ladeelektronik (S2MU004) sicher auf 2500 mA Fast-Charge & 1200 mA USB entsperren (ohne MHL-Konstanten anzufassen)
+          # 8. Ladeelektronik (S2MU004) sicher auf 2500 mA Fast-Charge & 1200 mA USB entsperren
           find drivers/battery* -type f -name "*.c" -exec sed -i 's/\<1650\>/2500/g; s/\<1800\>/2500/g; s/\<475\>/1200/g' {} + 2>/dev/null || true
 
           # 9. 1000Hz Ultra-Timer, eMMC No-CRC Speicher-Turbo & Google BBR Netzwerk-Stack
@@ -88,15 +88,13 @@ jobs:
       - name: All-In-One TWRP Flash-ZIP (Bootlogo + 4K Cam + Stereo + 3GB ZRAM + Adaptive Tune) bauen
         run: |
           set -e
-          mkdir -p ultra_zip/META-INF/com/google/android
-          BOOT_IMG=$(find . -name "*boot*.img" | head -n 1)
+          mkdir -p "$GITHUB_WORKSPACE/output"
+          mkdir -p "$GITHUB_WORKSPACE/ultra_zip/META-INF/com/google/android"
+          BOOT_IMG=$(find "$GITHUB_WORKSPACE" -name "*boot*.img" | head -n 1)
           echo "Gefundenes Boot-Image: $BOOT_IMG"
-          if [ -z "$BOOT_IMG" ]; then
-            echo "FEHLER: Kein boot.img erzeugt! Zeige echte Compiler-Fehler:"
-            grep -iE "error:|undefined reference" rise/build.log 2>/dev/null || tail -n 80 rise/build.log 2>/dev/null || true
-            exit 1
-          fi
-          cp "$BOOT_IMG" ultra_zip/boot.img
+          test -f "$BOOT_IMG"
+          cp "$BOOT_IMG" "$GITHUB_WORKSPACE/ultra_zip/boot.img"
+          cp "$BOOT_IMG" "$GITHUB_WORKSPACE/output/boot_Samsung_Galaxy_A5_Ultra.img"
 
           # Eigenes Full-HD Bootlogo (logo.jpg) sicher per Python erzeugen
           python3 -c '
@@ -110,14 +108,11 @@ jobs:
           img.save("ultra_zip/logo.jpg", quality=92)
           '
 
-          cat << 'EOF' > ultra_zip/ultra_autotune.sh
+          cat << 'EOF' > "$GITHUB_WORKSPACE/ultra_zip/ultra_autotune.sh"
           #!/system/bin/sh
           sleep 20
-
-          # 1. SELinux Permissive fuer volle Treiber-, 4K-Kamera- & Audio-Freiheit
           setenforce 0 2>/dev/null
 
-          # 2. Adaptiver Flagship-Governor (344MHz im Leerlauf, blitzschnell 2054MHz unter Last)
           for cpu in /sys/devices/system/cpu/cpu[0-7]/cpufreq; do
             if [ -d "$cpu" ]; then
               echo 344000 > "$cpu/scaling_min_freq" 2>/dev/null
@@ -134,7 +129,6 @@ jobs:
             fi
           done
 
-          # 3. 3.0 GB ZRAM (LZ4) -> 6GB RAM Multitasking-Erlebnis
           swapoff /dev/block/zram0 2>/dev/null
           echo 1 > /sys/block/zram0/reset 2>/dev/null
           echo lz4 > /sys/block/zram0/comp_algorithm 2>/dev/null
@@ -144,7 +138,6 @@ jobs:
           echo 100 > /proc/sys/vm/swappiness 2>/dev/null
           echo 50 > /proc/sys/vm/vfs_cache_pressure 2>/dev/null
 
-          # 4. eMMC Flash-Turbo & Auto-TRIM fuer dauerhaften Neuzustand-Speed
           for q in /sys/block/mmcblk*/queue; do
             echo fiops > "$q/scheduler" 2>/dev/null || echo deadline > "$q/scheduler" 2>/dev/null
             echo 2048 > "$q/read_ahead_kb" 2>/dev/null
@@ -154,7 +147,6 @@ jobs:
           fstrim -v /data 2>/dev/null
           fstrim -v /cache 2>/dev/null
 
-          # 5. Google BBR Netzwerk, 0.5x Flagship-Animationen & App-Speed-Kompilierung
           sysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null
           settings put global window_animation_scale 0.5 2>/dev/null
           settings put global transition_animation_scale 0.5 2>/dev/null
@@ -162,7 +154,7 @@ jobs:
           cmd package bg-dexopt-job 2>/dev/null &
           EOF
 
-          cat << 'EOF' > ultra_zip/ultra_patch.sh
+          cat << 'EOF' > "$GITHUB_WORKSPACE/ultra_zip/ultra_patch.sh"
           #!/sbin/sh
           SYS="/system"
           [ -d "/system/system" ] && SYS="/system/system"
@@ -171,3 +163,15 @@ jobs:
           if [ -f "$PROP" ]; then
             sed -i 's/ro.product.model=.*/ro.product.model=Galaxy A5 Ultra/g' "$PROP"
             sed -i 's/ro.product.system.model=.*/ro.product.system.model=Galaxy A5 Ultra/g' "$PROP"
+            sed -i 's/ro.product.vendor.model=.*/ro.product.vendor.model=Galaxy A5 Ultra/g' "$PROP"
+            grep -q "Samsung Galaxy A5 Ultra" "$PROP" || cat << 'PROPEOF' >> "$PROP"
+
+          # Samsung Galaxy A5 Ultra Adaptive Flagship System Unlock
+          ro.boot.warranty_bit=0
+          ro.warranty_bit=0
+          debug.sf.hw=1
+          debug.egl.hw=1
+          debug.composition.type=gpu
+          debug.hwui.renderer=skiagl
+          persist.sys.ui.hw=1
+          debug.sf.latch_unsignaled=1
