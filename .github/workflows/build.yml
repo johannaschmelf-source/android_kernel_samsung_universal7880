@@ -3,6 +3,9 @@ name: Build Samsung Galaxy A5 Ultra
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -25,18 +28,15 @@ jobs:
 
           test -f "$DTS_FILE" && test -f "$GPU_FILE" && test -f "$DEFCONFIG"
 
-          # 1. Offizielle Kernel-Identitaet & Sicherheitsebene (SELinux Permissive + Hardware-Crypto)
           sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-Samsung-Galaxy-A5-Ultra-80Hz"/g' "$DEFCONFIG"
           grep -q "CONFIG_LOCALVERSION=" "$DEFCONFIG" || echo 'CONFIG_LOCALVERSION="-Samsung-Galaxy-A5-Ultra-80Hz"' >> "$DEFCONFIG"
           echo "CONFIG_SECURITY_SELINUX_DEVELOP=y" >> "$DEFCONFIG"
           echo "CONFIG_CRYPTO_CRC32C=y" >> "$DEFCONFIG"
           echo "CONFIG_CRYPTO_LZ4=y" >> "$DEFCONFIG"
 
-          # 2. 80Hz Super-AMOLED Overclocking & High Brightness Mode (HBM) Unlock
           find arch/arm64/boot/dts -type f -name "*.dts*" -exec sed -i 's/refresh = <60>;/refresh = <80>;/g; s/fps = <60>;/fps = <80>;/g; s/panel-refresh-rate = <60>;/panel-refresh-rate = <80>;/g' {} + 2>/dev/null || true
           find drivers/video/fbdev/exynos -type f -name "*.c" -exec sed -i 's/hbm_mode = 0/hbm_mode = 1/g' {} + 2>/dev/null || true
 
-          # 3. CPU auf 2054 MHz (Platz 0) & 2002 MHz (Platz 1) hochziehen (sicherer Boot auf 1794 MHz)
           sed -i 's/cl0_boot_max_qos = <2002000>;/cl0_boot_max_qos = <1794000>;/g' "$DTS_FILE"
           sed -i 's/cl1_boot_max_qos = <2002000>;/cl1_boot_max_qos = <1794000>;/g' "$DTS_FILE"
           sed -i 's/0  2002000  1200000  1014000/0  2054000  1250000  1014000/g' "$DTS_FILE"
@@ -46,31 +46,25 @@ jobs:
             sed -i 's/if (ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/if (i >= 1 \&\& ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/g' "$CPU_CAL"
           fi
 
-          # 4. GPU Limit-Break: 1248 MHz & 1196 MHz + 1794 MHz RAM + 1125mV Max-Spannung
           sed -i 's/{1138, 950000, 0, 98, 100, 1, 0, 1539000/{1248, 1035000, 0, 98, 100, 1, 0, 1794000/g' "$GPU_FILE"
           sed -i 's/{1086, 925000, 0, 98, 100, 1, 0, 1539000/{1196, 995000, 0, 98, 100, 1, 0, 1794000/g' "$GPU_FILE"
           sed -i 's/{GPU_MAX_CLOCK, 1138}/{GPU_MAX_CLOCK, 1196}/g' "$GPU_FILE"
           sed -i 's/{GPU_MAX_CLOCK_LIMIT, 1138}/{GPU_MAX_CLOCK_LIMIT, 1248}/g' "$GPU_FILE"
           sed -i 's/{GPU_MAX_VOLTAGE, [0-9]*}/{GPU_MAX_VOLTAGE, 1125000}/g' "$GPU_FILE"
 
-          # 5. LPDDR4 RAM-Takt (MIF) auf maximale 1794 MHz freischalten (450 MHz im Leerlauf)
           sed -i 's/freq_info = <1539000 450000 450000 1539000 450000 1539000>;/freq_info = <1539000 450000 450000 1794000 450000 1794000>;/g' "$DTS_FILE"
 
-          # 6. Flagship Input-Booster, Touchscreen-Latenz & Fingerabdruck-Treiber beschleunigen
           find arch/arm64/boot/dts -type f -name "*.dts*" -exec sed -i 's/ibi,cpu_freq = <[^>]*>/ibi,cpu_freq = <2054000 1794000 0>/g; s/ibi,mif_freq = <[^>]*>/ibi,mif_freq = <1794000 1539000 0>/g' {} + 2>/dev/null || true
           find drivers/fingerprint -type f -name "*.c" -exec sed -i 's/msleep(20)/msleep(5)/g; s/msleep(10)/msleep(3)/g' {} + 2>/dev/null || true
           find drivers/input/touchscreen -type f -name "*.c" -exec sed -i 's/msleep(20)/msleep(5)/g; s/msleep(15)/msleep(4)/g' {} + 2>/dev/null || true
 
-          # 7. Thermal-Throttling entfesseln (erst ab 95 Grad)
           sed -i 's/{TEMP_THROTTLING1, [0-9]*}/{TEMP_THROTTLING1, 95}/g' "$GPU_FILE"
           sed -i 's/{TEMP_THROTTLING2, [0-9]*}/{TEMP_THROTTLING2, 97}/g' "$GPU_FILE"
           sed -i 's/{TEMP_THROTTLING3, [0-9]*}/{TEMP_THROTTLING3, 99}/g' "$GPU_FILE"
           sed -i 's/{TEMP_THROTTLING4, [0-9]*}/{TEMP_THROTTLING4, 101}/g' "$GPU_FILE"
 
-          # 8. Ladeelektronik (S2MU004) sicher auf 2500 mA Fast-Charge & 1200 mA USB entsperren
           find drivers/battery* -type f -name "*.c" -exec sed -i 's/\<1650\>/2500/g; s/\<1800\>/2500/g; s/\<475\>/1200/g' {} + 2>/dev/null || true
 
-          # 9. 1000Hz Ultra-Timer, eMMC No-CRC Speicher-Turbo & Google BBR Netzwerk-Stack
           echo "CONFIG_HZ_1000=y" >> "$DEFCONFIG"
           echo "# CONFIG_HZ_250 is not set" >> "$DEFCONFIG"
           echo "# CONFIG_MMC_SPI_CRC_ON is not set" >> "$DEFCONFIG"
@@ -85,7 +79,9 @@ jobs:
           chmod +x build_rise.sh
           printf "y\n7\na5\nn\nn\n" | ./build_rise.sh
 
-      - name: All-In-One TWRP Flash-ZIP bauen
+      - name: All-In-One TWRP Flash-ZIP bauen & direkt als Release veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -e
           mkdir -p "$GITHUB_WORKSPACE/output"
