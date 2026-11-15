@@ -12,15 +12,14 @@ jobs:
       - name: Original-Boot-Image auf 2106 MHz & 1300 MHz patchen
         run: |
           set -e
-          AIK_DIR=$(find . -ipath "*OneUI*" -name "repackimg.sh" -printf "%h\n" | head -n 1)
-          [ -z "$AIK_DIR" ] && AIK_DIR=$(find . -name "repackimg.sh" -printf "%h\n" | tail -n 1)
+          ORIG_IMG=$(find "$GITHUB_WORKSPACE" -maxdepth 2 -type f -name "*.img" | head -n 1)
+          test -f "$ORIG_IMG"
+          AIK_DIR=$(find "$GITHUB_WORKSPACE" -name "unpackimg.sh" -printf "%h\n" | head -n 1)
           cd "$AIK_DIR"
           chmod +x *.sh 2>/dev/null || true
-          ORIG_IMG=$(find "$GITHUB_WORKSPACE" -type f -name "*a5*.img" -o -name "boot.img" | head -n 1)
-          if [ -n "$ORIG_IMG" ] && [ -f "./unpackimg.sh" ]; then
-            cp "$ORIG_IMG" ./boot.img
-            ./unpackimg.sh boot.img
-          fi
+          rm -rf split_img ramdisk
+          cp "$ORIG_IMG" ./boot.img
+          ./unpackimg.sh boot.img
           python3 -c '
           import glob
           for path in glob.glob("split_img/*"):
