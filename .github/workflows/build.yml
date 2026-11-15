@@ -1,23 +1,18 @@
 name: Build Samsung Galaxy A5 Ultra
-
 on:
   workflow_dispatch:
-
 permissions:
   contents: write
-
 jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
       - name: Quellcode laden
         uses: actions/checkout@v4
-
       - name: Build-Pakete & ARM64 Toolchain installieren
         run: |
           sudo apt-get update
           sudo apt-get install -y bc bison build-essential ccache curl flex git gnupg gperf imagemagick fonts-dejavu-core liblz4-tool libncurses5 libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip unzip zlib1g-dev python2 gcc-aarch64-linux-gnu
-
       - name: Samsung Galaxy A5 Ultra Extreme GPU & 35-in-1 Silicon Overhaul
         run: |
           set -e
@@ -37,14 +32,12 @@ jobs:
           find drivers/fingerprint drivers/input/touchscreen -type f -name "*.c" -exec sed -i 's/msleep(20)/msleep(3)/g; s/msleep(15)/msleep(2)/g; s/msleep(10)/msleep(2)/g' {} + 2>/dev/null || true
           find drivers/battery* -type f -name "*.c" -exec sed -i 's/\<1650\>/2600/g; s/\<1800\>/2600/g; s/\<475\>/1200/g' {} + 2>/dev/null || true
           find drivers/mmc -type f -name "*.c" -exec sed -i 's/bool use_spi_crc = 1;/bool use_spi_crc = 0;/g' {} + 2>/dev/null || true
-
       - name: Kernel & Boot-Image direkt bauen (Samsung Galaxy A5 Ultra OneUI 10)
         run: |
           export ARCH=arm64 SUBARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
           make $(basename $(find arch/arm64/configs -name "*a5y17lte*" | head -n 1))
           make -j$(nproc) KCFLAGS="-Wno-error" Image dtbs
           test -f arch/arm64/boot/Image
-
       - name: OneUI 10 Boot-Image & TWRP Flash-ZIP bauen
         run: |
           mkdir -p "$GITHUB_WORKSPACE/output" "$GITHUB_WORKSPACE/ultra_zip/META-INF/com/google/android"
@@ -55,7 +48,6 @@ jobs:
           [ -n "$DTB_FILE" ] && cp "$DTB_FILE" "$AIK_DIR/split_img/boot.img-dtb"
           (cd "$AIK_DIR" && chmod +x repackimg.sh && ./repackimg.sh) || true
           NEW_BOOT=$(ls -t $(find "$GITHUB_WORKSPACE/rise" -type f -name "*.img") 2>/dev/null | head -n 1)
-          echo "Gefundenes Boot-Image: $NEW_BOOT"
           cp "$NEW_BOOT" "$GITHUB_WORKSPACE/ultra_zip/boot.img"
           printf "SEANDROIDENFORCE" >> "$GITHUB_WORKSPACE/ultra_zip/boot.img"
           cp "$GITHUB_WORKSPACE/ultra_zip/boot.img" "$GITHUB_WORKSPACE/output/boot_Samsung_Galaxy_A5_Ultra_OneUI10.img"
