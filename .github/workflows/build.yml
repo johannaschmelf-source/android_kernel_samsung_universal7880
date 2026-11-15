@@ -25,18 +25,15 @@ jobs:
 
           test -f "$DTS_FILE" && test -f "$GPU_FILE" && test -f "$DEFCONFIG"
 
-          # 1. Offizielle Kernel-Identitaet & Sicherheitsebene (SELinux Permissive + Hardware-Crypto)
           sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-Samsung-Galaxy-A5-Ultra-Adaptive"/g' "$DEFCONFIG"
           grep -q "CONFIG_LOCALVERSION=" "$DEFCONFIG" || echo 'CONFIG_LOCALVERSION="-Samsung-Galaxy-A5-Ultra-Adaptive"' >> "$DEFCONFIG"
           echo "CONFIG_SECURITY_SELINUX_DEVELOP=y" >> "$DEFCONFIG"
           echo "CONFIG_CRYPTO_CRC32C=y" >> "$DEFCONFIG"
           echo "CONFIG_CRYPTO_LZ4=y" >> "$DEFCONFIG"
 
-          # 2. 75Hz Super-AMOLED Overclocking & High Brightness Mode (HBM) Unlock
           find arch/arm64/boot/dts -type f -name "*.dts*" -exec sed -i 's/refresh = <60>;/refresh = <75>;/g; s/fps = <60>;/fps = <75>;/g; s/panel-refresh-rate = <60>;/panel-refresh-rate = <75>;/g' {} + 2>/dev/null || true
           find drivers/video/fbdev/exynos -type f -name "*.c" -exec sed -i 's/hbm_mode = 0/hbm_mode = 1/g' {} + 2>/dev/null || true
 
-          # 3. CPU auf 2054 MHz (Platz 0) & 2002 MHz (Platz 1) hochziehen (sicherer Boot auf 1794 MHz)
           sed -i 's/cl0_boot_max_qos = <2002000>;/cl0_boot_max_qos = <1794000>;/g' "$DTS_FILE"
           sed -i 's/cl1_boot_max_qos = <2002000>;/cl1_boot_max_qos = <1794000>;/g' "$DTS_FILE"
           sed -i 's/0  2002000  1200000  1014000/0  2054000  1250000  1014000/g' "$DTS_FILE"
@@ -46,31 +43,25 @@ jobs:
             sed -i 's/if (ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/if (i >= 1 \&\& ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/g' "$CPU_CAL"
           fi
 
-          # 4. GPU Limit-Break: 1248 MHz & 1196 MHz + 1794 MHz RAM
           sed -i 's/{1138, 950000, 0, 98, 100, 1, 0, 1539000/{1248, 1025000, 0, 98, 100, 1, 0, 1794000/g' "$GPU_FILE"
           sed -i 's/{1086, 925000, 0, 98, 100, 1, 0, 1539000/{1196, 990000, 0, 98, 100, 1, 0, 1794000/g' "$GPU_FILE"
           sed -i 's/{GPU_MAX_CLOCK, 1138}/{GPU_MAX_CLOCK, 1196}/g' "$GPU_FILE"
           sed -i 's/{GPU_MAX_CLOCK_LIMIT, 1138}/{GPU_MAX_CLOCK_LIMIT, 1248}/g' "$GPU_FILE"
           sed -i 's/{GPU_MAX_VOLTAGE, [0-9]*}/{GPU_MAX_VOLTAGE, 1100000}/g' "$GPU_FILE"
 
-          # 5. LPDDR4 RAM-Takt (MIF) auf maximale 1794 MHz freischalten (450 MHz im Leerlauf)
           sed -i 's/freq_info = <1539000 450000 450000 1539000 450000 1539000>;/freq_info = <1539000 450000 450000 1794000 450000 1794000>;/g' "$DTS_FILE"
 
-          # 6. Flagship Input-Booster, Touchscreen-Latenz & Fingerabdruck-Treiber beschleunigen
           find arch/arm64/boot/dts -type f -name "*.dts*" -exec sed -i 's/ibi,cpu_freq = <[^>]*>/ibi,cpu_freq = <2054000 1794000 0>/g; s/ibi,mif_freq = <[^>]*>/ibi,mif_freq = <1794000 1539000 0>/g' {} + 2>/dev/null || true
           find drivers/fingerprint -type f -name "*.c" -exec sed -i 's/msleep(20)/msleep(5)/g; s/msleep(10)/msleep(3)/g' {} + 2>/dev/null || true
           find drivers/input/touchscreen -type f -name "*.c" -exec sed -i 's/msleep(20)/msleep(5)/g; s/msleep(15)/msleep(4)/g' {} + 2>/dev/null || true
 
-          # 7. Thermal-Throttling entfesseln (erst ab 95 Grad)
           sed -i 's/{TEMP_THROTTLING1, [0-9]*}/{TEMP_THROTTLING1, 95}/g' "$GPU_FILE"
           sed -i 's/{TEMP_THROTTLING2, [0-9]*}/{TEMP_THROTTLING2, 97}/g' "$GPU_FILE"
           sed -i 's/{TEMP_THROTTLING3, [0-9]*}/{TEMP_THROTTLING3, 99}/g' "$GPU_FILE"
           sed -i 's/{TEMP_THROTTLING4, [0-9]*}/{TEMP_THROTTLING4, 101}/g' "$GPU_FILE"
 
-          # 8. Ladeelektronik (S2MU004) sicher auf 2500 mA Fast-Charge & 1200 mA USB entsperren
           find drivers/battery* -type f -name "*.c" -exec sed -i 's/\<1650\>/2500/g; s/\<1800\>/2500/g; s/\<475\>/1200/g' {} + 2>/dev/null || true
 
-          # 9. 1000Hz Ultra-Timer, eMMC No-CRC Speicher-Turbo & Google BBR Netzwerk-Stack
           echo "CONFIG_HZ_1000=y" >> "$DEFCONFIG"
           echo "# CONFIG_HZ_250 is not set" >> "$DEFCONFIG"
           echo "# CONFIG_MMC_SPI_CRC_ON is not set" >> "$DEFCONFIG"
@@ -85,19 +76,15 @@ jobs:
           chmod +x build_rise.sh
           printf "y\n7\na5\nn\nn\n" | ./build_rise.sh
 
-      - name: All-In-One TWRP Flash-ZIP (Bootlogo + 4K Cam + Stereo + 3GB ZRAM + Adaptive Tune) bauen
+      - name: All-In-One TWRP Flash-ZIP bauen
         run: |
           set -e
           mkdir -p "$GITHUB_WORKSPACE/output"
           mkdir -p "$GITHUB_WORKSPACE/ultra_zip/META-INF/com/google/android"
-          BOOT_IMG=$(find "$GITHUB_WORKSPACE" -name "*boot*.img" | head -n 1)
-          echo "Gefundenes Boot-Image: $BOOT_IMG"
-          test -f "$BOOT_IMG"
-          cp "$BOOT_IMG" "$GITHUB_WORKSPACE/ultra_zip/boot.img"
-          cp "$BOOT_IMG" "$GITHUB_WORKSPACE/output/boot_Samsung_Galaxy_A5_Ultra.img"
+          cp "$GITHUB_WORKSPACE/rise/boot_oneui_10.0_a5.img" "$GITHUB_WORKSPACE/ultra_zip/boot.img"
+          cp "$GITHUB_WORKSPACE/rise/boot_oneui_10.0_a5.img" "$GITHUB_WORKSPACE/output/boot_Samsung_Galaxy_A5_Ultra.img"
 
-          # Eigenes Full-HD Bootlogo (logo.jpg) sicher per Python erzeugen
-          python3 -c '
+          python3 - << 'PYEOF'
           from PIL import Image, ImageDraw
           img = Image.new("RGB", (1080, 1920), "black")
           d = ImageDraw.Draw(img)
@@ -106,18 +93,12 @@ jobs:
           d.text((250, 950), "75Hz AMOLED  |  2054MHz CPU  |  1248MHz GPU", fill=(180, 180, 180))
           d.text((290, 1650), "4K UHD Pro Cam  |  Stereo Hi-Fi  |  Exynos Ultra", fill=(110, 110, 110))
           img.save("ultra_zip/logo.jpg", quality=92)
-          '
 
-          cat << 'EOF' > "$GITHUB_WORKSPACE/ultra_zip/ultra_autotune.sh"
-          #!/system/bin/sh
+          autotune = """#!/system/bin/sh
           sleep 20
           setenforce 0 2>/dev/null
-
           for cpu in /sys/devices/system/cpu/cpu[0-7]/cpufreq; do
-            if [ -d "$cpu" ]; then
-              echo 344000 > "$cpu/scaling_min_freq" 2>/dev/null
-              echo 2054000 > "$cpu/scaling_max_freq" 2>/dev/null
-            fi
+            [ -d "$cpu" ] && echo 344000 > "$cpu/scaling_min_freq" 2>/dev/null && echo 2054000 > "$cpu/scaling_max_freq" 2>/dev/null
           done
           for gov in /sys/devices/system/cpu/cpu*/cpufreq/interactive; do
             if [ -d "$gov" ]; then
@@ -128,7 +109,6 @@ jobs:
               echo 40000 > "$gov/min_sample_time" 2>/dev/null
             fi
           done
-
           swapoff /dev/block/zram0 2>/dev/null
           echo 1 > /sys/block/zram0/reset 2>/dev/null
           echo lz4 > /sys/block/zram0/comp_algorithm 2>/dev/null
@@ -137,7 +117,6 @@ jobs:
           swapon /dev/block/zram0 2>/dev/null
           echo 100 > /proc/sys/vm/swappiness 2>/dev/null
           echo 50 > /proc/sys/vm/vfs_cache_pressure 2>/dev/null
-
           for q in /sys/block/mmcblk*/queue; do
             echo fiops > "$q/scheduler" 2>/dev/null || echo deadline > "$q/scheduler" 2>/dev/null
             echo 2048 > "$q/read_ahead_kb" 2>/dev/null
@@ -146,32 +125,25 @@ jobs:
           done
           fstrim -v /data 2>/dev/null
           fstrim -v /cache 2>/dev/null
-
           sysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null
           settings put global window_animation_scale 0.5 2>/dev/null
           settings put global transition_animation_scale 0.5 2>/dev/null
           settings put global animator_duration_scale 0.5 2>/dev/null
           cmd package bg-dexopt-job 2>/dev/null &
-          EOF
+          """
+          open("ultra_zip/ultra_autotune.sh", "w").write("\n".join(line.strip() for line in autotune.splitlines()) + "\n")
 
-          cat << 'EOF' > "$GITHUB_WORKSPACE/ultra_zip/ultra_patch.sh"
-          #!/sbin/sh
+          patch = """#!/sbin/sh
           SYS="/system"
           [ -d "/system/system" ] && SYS="/system/system"
           PROP="$SYS/build.prop"
-
           if [ -f "$PROP" ]; then
             sed -i 's/ro.product.model=.*/ro.product.model=Galaxy A5 Ultra/g' "$PROP"
             sed -i 's/ro.product.system.model=.*/ro.product.system.model=Galaxy A5 Ultra/g' "$PROP"
             sed -i 's/ro.product.vendor.model=.*/ro.product.vendor.model=Galaxy A5 Ultra/g' "$PROP"
-            grep -q "Samsung Galaxy A5 Ultra" "$PROP" || cat << 'PROPEOF' >> "$PROP"
-
-          # Samsung Galaxy A5 Ultra Adaptive Flagship System Unlock
-          ro.boot.warranty_bit=0
-          ro.warranty_bit=0
-          debug.sf.hw=1
-          debug.egl.hw=1
-          debug.composition.type=gpu
-          debug.hwui.renderer=skiagl
-          persist.sys.ui.hw=1
-          debug.sf.latch_unsignaled=1
+            grep -q "Samsung Galaxy A5 Ultra" "$PROP" || printf "\\nro.boot.warranty_bit=0\\nro.warranty_bit=0\\ndebug.sf.hw=1\\ndebug.egl.hw=1\\ndebug.composition.type=gpu\\ndebug.hwui.renderer=skiagl\\npersist.sys.ui.hw=1\\ndebug.sf.latch_unsignaled=1\\ndebug.sf.disable_backpressure=1\\nro.surface_flinger.max_frame_buffer_acquired_buffers=3\\nro.config.zram=true\\ndalvik.vm.heapsize=512m\\ndalvik.vm.heapgrowthlimit=256m\\npersist.dbg.ims_volte_enable=1\\npersist.dbg.volte_avail_ovr=1\\npersist.dbg.wfc_avail_ovr=1\\npm.sleep_mode=1\\nro.media.enc.jpeg.quality=100\\nro.media.dec.jpeg.memcap=16000000\\nro.media.enc.hprof.vid.bps=48000000\\nro.media.enc.hprof.vid.fps=60\\npersist.camera.HAL3.enabled=1\\npersist.camera.eis.enable=1\\npersist.camera.4k2k.enable=1\\ncamera.disable_zsl_mode=0\\naf.resampler.quality=255\\npersist.audio.fluence.voicecall=true\\npersist.audio.fluence.speaker=true\\nro.config.vc_call_vol_steps=15\\nro.config.media_vol_steps=25\\n" >> "$PROP"
+          fi
+          for CAMXML in $(find "$SYS" /vendor -name "camera-feature*.xml" 2>/dev/null); do
+            sed -i 's/SUPPORT_RECORDING_4K_UHD" value="false"/SUPPORT_RECORDING_4K_UHD" value="true"/g' "$CAMXML"
+            sed -i 's/SUPPORT_FRONT_RECORDING_4K_UHD" value="false"/SUPPORT_FRONT_RECORDING_4K_UHD" value="true"/g' "$CAMXML"
+            sed -i 's/SUPPORT_RECORDING_60FPS" value="false"/SUPPORT_RECORDING_60FPS" value="true"/g' "$CAMXML"
