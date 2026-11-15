@@ -67,8 +67,8 @@ jobs:
           sed -i 's/{TEMP_THROTTLING3, [0-9]*}/{TEMP_THROTTLING3, 99}/g' "$GPU_FILE"
           sed -i 's/{TEMP_THROTTLING4, [0-9]*}/{TEMP_THROTTLING4, 101}/g' "$GPU_FILE"
 
-          # 8. Ladeelektronik (S2MU004) auf 2500 mA Fast-Charge & 1200 mA USB entsperren
-          find drivers/battery* -type f -name "*.c" -exec sed -i 's/1650/2500/g; s/1800/2500/g; s/475/1200/g; s/500/1200/g' {} + 2>/dev/null || true
+          # 8. Ladeelektronik (S2MU004) sicher auf 2500 mA Fast-Charge & 1200 mA USB entsperren (ohne MHL-Konstanten anzufassen)
+          find drivers/battery* -type f -name "*.c" -exec sed -i 's/\<1650\>/2500/g; s/\<1800\>/2500/g; s/\<475\>/1200/g' {} + 2>/dev/null || true
 
           # 9. 1000Hz Ultra-Timer, eMMC No-CRC Speicher-Turbo & Google BBR Netzwerk-Stack
           echo "CONFIG_HZ_1000=y" >> "$DEFCONFIG"
