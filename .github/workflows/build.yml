@@ -12,20 +12,31 @@ jobs:
       - name: Original-Boot-Image auf 2106 MHz & 1300 MHz patchen
         run: |
           set -e
-          sudo apt-get update && sudo apt-get install -y python3
           AIK_DIR=$(find . -ipath "*OneUI*" -name "repackimg.sh" -printf "%h\n" | head -n 1)
           [ -z "$AIK_DIR" ] && AIK_DIR=$(find . -name "repackimg.sh" -printf "%h\n" | tail -n 1)
           cd "$AIK_DIR"
-          chmod +x repackimg.sh
-          DTB_FILE=$(ls split_img/*-dtb split_img/*-dt 2>/dev/null | head -n 1)
+          chmod +x *.sh 2>/dev/null || true
+          ORIG_IMG=$(find "$GITHUB_WORKSPACE" -type f -name "*a5*.img" -o -name "boot.img" | head -n 1)
+          if [ -n "$ORIG_IMG" ] && [ -f "./unpackimg.sh" ]; then
+            cp "$ORIG_IMG" ./boot.img
+            ./unpackimg.sh boot.img
+          fi
           python3 -c '
-          data = open("'"$DTB_FILE"'", "rb").read()
-          data = data.replace((2002000).to_bytes(4, "big"), (2106000).to_bytes(4, "big"))
-          data = data.replace((1924000).to_bytes(4, "big"), (2054000).to_bytes(4, "big"))
-          data = data.replace((1872000).to_bytes(4, "big"), (2054000).to_bytes(4, "big"))
-          data = data.replace((1138).to_bytes(4, "big"), (1300).to_bytes(4, "big"))
-          data = data.replace((1086).to_bytes(4, "big"), (1248).to_bytes(4, "big"))
-          open("'"$DTB_FILE"'", "wb").write(data)
+          import glob
+          for path in glob.glob("split_img/*"):
+              try:
+                  data = open(path, "rb").read()
+                  new_data = (data
+                      .replace((2002000).to_bytes(4, "big"), (2106000).to_bytes(4, "big"))
+                      .replace((1924000).to_bytes(4, "big"), (2054000).to_bytes(4, "big"))
+                      .replace((1872000).to_bytes(4, "big"), (2054000).to_bytes(4, "big"))
+                      .replace((1138).to_bytes(4, "big"), (1300).to_bytes(4, "big"))
+                      .replace((1086).to_bytes(4, "big"), (1248).to_bytes(4, "big")))
+                  if new_data != data:
+                      open(path, "wb").write(new_data)
+                      print("Patched:", path)
+              except Exception:
+                  pass
           '
           ./repackimg.sh
           mkdir -p "$GITHUB_WORKSPACE/output"
