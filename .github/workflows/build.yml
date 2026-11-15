@@ -35,11 +35,9 @@ jobs:
           echo "CONFIG_CRYPTO_CRC32C=y" >> "$DEFCONFIG"
           echo "CONFIG_CRYPTO_LZ4=y" >> "$DEFCONFIG"
 
-          # 80Hz Super-AMOLED Overclocking & High Brightness Mode (HBM)
           find arch/arm64/boot/dts -type f -name "*.dts*" -exec sed -i 's/refresh = <60>;/refresh = <80>;/g; s/fps = <60>;/fps = <80>;/g; s/panel-refresh-rate = <60>;/panel-refresh-rate = <80>;/g' {} + 2>/dev/null || true
           find drivers/video/fbdev/exynos -type f -name "*.c" -exec sed -i 's/hbm_mode = 0/hbm_mode = 1/g' {} + 2>/dev/null || true
 
-          # CPU auf 2054 MHz & 2002 MHz (sicherer Boot auf 1794 MHz)
           sed -i 's/cl0_boot_max_qos = <2002000>;/cl0_boot_max_qos = <1794000>;/g' "$DTS_FILE"
           sed -i 's/cl1_boot_max_qos = <2002000>;/cl1_boot_max_qos = <1794000>;/g' "$DTS_FILE"
           sed -i 's/0  2002000  1200000  1014000/0  2054000  1250000  1014000/g' "$DTS_FILE"
@@ -49,31 +47,25 @@ jobs:
             sed -i 's/if (ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/if (i >= 1 \&\& ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/g' "$CPU_CAL"
           fi
 
-          # GPU Limit-Break: 1248 MHz & 1196 MHz + 1794 MHz RAM + 1125mV Max-Spannung
           sed -i 's/{1138, 950000, 0, 98, 100, 1, 0, 1539000/{1248, 1035000, 0, 98, 100, 1, 0, 1794000/g' "$GPU_FILE"
           sed -i 's/{1086, 925000, 0, 98, 100, 1, 0, 1539000/{1196, 995000, 0, 98, 100, 1, 0, 1794000/g' "$GPU_FILE"
           sed -i 's/{GPU_MAX_CLOCK, 1138}/{GPU_MAX_CLOCK, 1196}/g' "$GPU_FILE"
           sed -i 's/{GPU_MAX_CLOCK_LIMIT, 1138}/{GPU_MAX_CLOCK_LIMIT, 1248}/g' "$GPU_FILE"
           sed -i 's/{GPU_MAX_VOLTAGE, [0-9]*}/{GPU_MAX_VOLTAGE, 1125000}/g' "$GPU_FILE"
 
-          # LPDDR4 RAM-Takt (MIF) auf 1794 MHz
           sed -i 's/freq_info = <1539000 450000 450000 1539000 450000 1539000>;/freq_info = <1539000 450000 450000 1794000 450000 1794000>;/g' "$DTS_FILE"
 
-          # Input-Booster, Touchscreen & Fingerprint beschleunigen
           find arch/arm64/boot/dts -type f -name "*.dts*" -exec sed -i 's/ibi,cpu_freq = <[^>]*>/ibi,cpu_freq = <2054000 1794000 0>/g; s/ibi,mif_freq = <[^>]*>/ibi,mif_freq = <1794000 1539000 0>/g' {} + 2>/dev/null || true
           find drivers/fingerprint -type f -name "*.c" -exec sed -i 's/msleep(20)/msleep(5)/g; s/msleep(10)/msleep(3)/g' {} + 2>/dev/null || true
           find drivers/input/touchscreen -type f -name "*.c" -exec sed -i 's/msleep(20)/msleep(5)/g; s/msleep(15)/msleep(4)/g' {} + 2>/dev/null || true
 
-          # Thermal-Throttling entfesseln (erst ab 95 Grad)
           sed -i 's/{TEMP_THROTTLING1, [0-9]*}/{TEMP_THROTTLING1, 95}/g' "$GPU_FILE"
           sed -i 's/{TEMP_THROTTLING2, [0-9]*}/{TEMP_THROTTLING2, 97}/g' "$GPU_FILE"
           sed -i 's/{TEMP_THROTTLING3, [0-9]*}/{TEMP_THROTTLING3, 99}/g' "$GPU_FILE"
           sed -i 's/{TEMP_THROTTLING4, [0-9]*}/{TEMP_THROTTLING4, 101}/g' "$GPU_FILE"
 
-          # Ladeelektronik (S2MU004) auf 2500 mA Fast-Charge & 1200 mA USB entsperren
           find drivers/battery* -type f -name "*.c" -exec sed -i 's/\<1650\>/2500/g; s/\<1800\>/2500/g; s/\<475\>/1200/g' {} + 2>/dev/null || true
 
-          # 1000Hz Ultra-Timer, eMMC No-CRC Speicher-Turbo & Google BBR Netzwerk-Stack
           echo "CONFIG_HZ_1000=y" >> "$DEFCONFIG"
           echo "# CONFIG_HZ_250 is not set" >> "$DEFCONFIG"
           echo "# CONFIG_MMC_SPI_CRC_ON is not set" >> "$DEFCONFIG"
@@ -130,4 +122,6 @@ jobs:
           d.text((280, 1650), "4K 80Mbit Cam  |  Dolby Stereo  |  Apex Ultra", fill=(110, 110, 110))
           img.save("ultra_zip/logo.jpg", quality=92)
           '
+
+          printf '#!/system/bin/sh\nsleep 20\nsetenforce 0 2>/dev/null\nstop diagexe 2>/dev/null\nstop ddexe 2>/dev/null\nfor cpu in /sys/devices/system/cpu/cpu[0-7]/cpufreq; do\n  [ -d "$cpu" ] && echo 344000 > "$cpu/scaling_min_freq" 2>/dev/null && echo 2054000 > "$cpu/scaling_max_freq" 2>/dev/null\ndone\nfor c in /sys/devices/system/cpu/cpu[0-7]/online; do\n  echo 1 > "$c" 2>/dev/null\ndone\nfor gov in /sys/devices/system/cpu/cpu*/cpufreq/interactive; do\n  if [ -d "$gov" ]; then\n    echo 45 > "$gov/go_hispeed_load" 2>/dev/null\n    echo 2054000 > "$gov/hispeed_freq" 2>/dev/null\n    echo 0 > "$gov/above_hispeed_delay" 2>/dev/null\n    echo 10000 > "$gov/timer_rate" 2>/dev/null\n    echo 40000 > "$gov/min_sample_time" 2>/dev/null\n  fi\ndone\nswapoff /dev/block/zram0 2>/dev/null\necho 1 > /sys/block/zram0/reset 2>/dev/null\necho lz4 > /sys/block/zram0/comp_algorithm 2>/dev/null\necho 3221225472 > /sys/block/zram0/disksize 2>/dev/null\nmkswap /dev/block/zram0 2>/dev/null\nswapon /dev/block/zram0 2>/dev/null\necho 100 > /proc/sys/vm/swappiness 2>/dev/null\necho 50 > /proc/sys/vm/vfs_cache_pressure 2>/dev/null\necho "1536,2048,4096,8192,16384,24576" > /sys/module/lowmemorykiller/parameters/minfree 2>/dev/null\nfor q in /sys/block/mmcblk*/queue; do\n  echo fiops > "$q/scheduler" 2>/dev/null || echo deadline > "$q/scheduler" 2>/dev/null\n  echo 2048 > "$q/read_ahead_kb" 2>/dev/null\n  echo 256 > "$q/nr_requests" 2>/dev/null\n  echo 0 > "$q/iostats" 2>/dev/null\ndone\nfstrim -v /data 2>/dev/null\nfstrim -v /cache 2>/dev/null\nsysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null\nsysctl -w net.ipv4.tcp_fastopen=3 2>/dev/null\nsysctl -w net.core.rmem_max=8388608 2>/dev/null\nsysctl -w net.core.wmem_max=8388608 2>/dev/null\nsettings put global window_animation_scale 0.5 2>/dev/null\nsettings put global transition_animation_scale 0.5 2>/dev/null\nsettings put global animator_duration_scale 0.5 2>/dev/null\nsettings put global force_resizable_activities 1 2>/dev/null\nsettings put global enable_freeform_support 1 2>/dev/null\ncmd package bg-dexopt-job 2>/dev/null &\n' > "$GITHUB_WORKSPACE/ultra_zip/ultra_autotune.sh"
 
