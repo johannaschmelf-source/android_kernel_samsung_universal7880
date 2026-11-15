@@ -13,7 +13,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y bc bison build-essential ccache curl flex git gnupg gperf imagemagick fonts-dejavu-core liblz4-tool libncurses5 libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip unzip zlib1g-dev python2 gcc-aarch64-linux-gnu
-      - name: Samsung Galaxy A5 Ultra Pure Hardware & Driver Silicon Overhaul
+      - name: Samsung Galaxy A5 Ultra Pure Hardware Overhaul
         run: |
           set -e
           DTS_FILE=$(find arch/arm64/boot/dts -name "exynos7880.dtsi" | head -n 1)
@@ -22,22 +22,34 @@ jobs:
           DEFCONFIG=$(find arch/arm64/configs -name "*a5y17lte*" | head -n 1)
           sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-Samsung-Galaxy-A5-Ultra"/g' "$DEFCONFIG"
           grep -q "CONFIG_LOCALVERSION=" "$DEFCONFIG" || echo 'CONFIG_LOCALVERSION="-Samsung-Galaxy-A5-Ultra"' >> "$DEFCONFIG"
-          echo -e "CONFIG_SECURITY_SELINUX_DEVELOP=y\nCONFIG_DEVMEM=y\nCONFIG_KALLSYMS_ALL=y\nCONFIG_CRYPTO_CRC32C=y\nCONFIG_CRYPTO_LZ4=y\nCONFIG_KSM=y\nCONFIG_HZ_1000=y\n# CONFIG_HZ_250 is not set\n# CONFIG_MMC_SPI_CRC_ON is not set\nCONFIG_TCP_CONG_ADVANCED=y\nCONFIG_TCP_CONG_BBR=y\nCONFIG_TCP_CONG_WESTWOOD=y\nCONFIG_DEFAULT_BBR=y\nCONFIG_DEFAULT_TCP_CONG=\"bbr\"" >> "$DEFCONFIG"
+          echo -e "CONFIG_SECURITY_SELINUX_DEVELOP=y\nCONFIG_DEVMEM=y\nCONFIG_KALLSYMS_ALL=y\nCONFIG_CRYPTO_CRC32C=y\nCONFIG_CRYPTO_LZ4=y\nCONFIG_KSM=y\nCONFIG_HZ_1000=y\n# CONFIG_HZ_250 is not set\n# CONFIG_MMC_SPI_CRC_ON is not set\nCONFIG_TCP_CONG_ADVANCED=y\nCONFIG_TCP_CONG_BBR=y\nCONFIG_DEFAULT_BBR=y\nCONFIG_DEFAULT_TCP_CONG=\"bbr\"" >> "$DEFCONFIG"
           find arch/arm64/boot/dts -type f -name "*.dts*" -exec sed -i 's/refresh = <60>;/refresh = <80>;/g; s/fps = <60>;/fps = <80>;/g; s/panel-refresh-rate = <60>;/panel-refresh-rate = <80>;/g; s/ibi,cpu_freq = <[^>]*>/ibi,cpu_freq = <2106000 1794000 0>/g; s/ibi,mif_freq = <[^>]*>/ibi,mif_freq = <1794000 1539000 0>/g; s/debounce-interval = <[0-9]*>/debounce-interval = <2>/g; s/samsung,duty = <[0-9]*>/samsung,duty = <1000>/g; s/samsung,max_timeout = <[0-9]*>/samsung,max_timeout = <10>/g' {} + 2>/dev/null || true
-          find drivers/video/fbdev/exynos -type f -name "*.c" -exec sed -i 's/hbm_mode = 0/hbm_mode = 1/g' {} + 2>/dev/null || true
-          find drivers/motor -type f -name "*.c" -exec sed -i 's/overdrive = false/overdrive = true/g; s/overdrive = 0/overdrive = 1/g; s/msleep(20)/msleep(3)/g' {} + 2>/dev/null || true
-          find drivers/net/wireless/bcmdhd drivers/nfc drivers/sensors drivers/media/platform/exynos drivers/usb/typec -type f -name "*.c" -exec sed -i 's/msleep(20)/msleep(3)/g; s/msleep(10)/msleep(2)/g' {} + 2>/dev/null || true
+          find drivers/video/fbdev/exynos drivers/motor drivers/net/wireless/bcmdhd drivers/nfc drivers/sensors drivers/media/platform/exynos drivers/usb/typec drivers/fingerprint drivers/input/touchscreen -type f -name "*.c" -exec sed -i 's/hbm_mode = 0/hbm_mode = 1/g; s/overdrive = false/overdrive = true/g; s/overdrive = 0/overdrive = 1/g; s/msleep(20)/msleep(2)/g; s/msleep(15)/msleep(2)/g; s/msleep(10)/msleep(1)/g' {} + 2>/dev/null || true
           find drivers/thermal/samsung -type f -name "*.c" -exec sed -i 's/90000/100000/g; s/95000/102000/g' {} + 2>/dev/null || true
           sed -i 's/cl0_boot_max_qos = <2002000>;/cl0_boot_max_qos = <1794000>;/g; s/cl1_boot_max_qos = <2002000>;/cl1_boot_max_qos = <1794000>;/g; s/0  2002000  1200000  1014000/0  2106000  1300000  1014000/g; s/1  1872000  1200000  1014000/1  2054000  1285000  1014000/g; s/1  1924000  1200000  1014000/1  2054000  1285000  1014000/g; s/1794000  1150000/1794000  1115000/g; s/1690000  1100000/1690000  1065000/g; s/1586000  1050000/1586000  1015000/g; s/freq_info = <1539000 450000 450000 1539000 450000 1539000>;/freq_info = <1539000 450000 450000 1794000 450000 1794000>;/g' "$DTS_FILE"
           [ -f "$CPU_CAL" ] && sed -i 's/if (ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/if (i >= 1 \&\& ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/g' "$CPU_CAL"
           sed -i 's/{1138, 950000, 0, 98, 100, 1, 0, 1539000/{1300, 1075000, 0, 65, 100, 1, 0, 1794000/g; s/{1086, 925000, 0, 98, 100, 1, 0, 1539000/{1248, 1045000, 0, 60, 100, 1, 0, 1794000/g; s/{GPU_MAX_CLOCK, 1138}/{GPU_MAX_CLOCK, 1248}/g; s/{GPU_MAX_CLOCK_LIMIT, 1138}/{GPU_MAX_CLOCK_LIMIT, 1300}/g; s/{GPU_MAX_VOLTAGE, [0-9]*}/{GPU_MAX_VOLTAGE, 1150000}/g; s/{TEMP_THROTTLING1, [0-9]*}/{TEMP_THROTTLING1, 100}/g; s/{TEMP_THROTTLING2, [0-9]*}/{TEMP_THROTTLING2, 102}/g; s/{TEMP_THROTTLING3, [0-9]*}/{TEMP_THROTTLING3, 104}/g; s/{TEMP_THROTTLING4, [0-9]*}/{TEMP_THROTTLING4, 106}/g' "$GPU_FILE"
           find drivers/gpu/arm -type f -name "*.c" -exec sed -i 's/gpu_power_on_time = [0-9]*/gpu_power_on_time = 0/g; s/gpu_power_off_time = [0-9]*/gpu_power_off_time = 5000/g' {} + 2>/dev/null || true
-          find drivers/fingerprint drivers/input/touchscreen -type f -name "*.c" -exec sed -i 's/msleep(20)/msleep(2)/g; s/msleep(15)/msleep(2)/g; s/msleep(10)/msleep(1)/g' {} + 2>/dev/null || true
           find drivers/battery* -type f -name "*.c" -exec sed -i 's/\<1650\>/2700/g; s/\<1800\>/2700/g; s/\<475\>/1300/g' {} + 2>/dev/null || true
           find drivers/mmc -type f -name "*.c" -exec sed -i 's/bool use_spi_crc = 1;/bool use_spi_crc = 0;/g' {} + 2>/dev/null || true
-      - name: Kernel & Boot-Image direkt bauen (Samsung Galaxy A5 Ultra Pure)
+      - name: Kernel & Boot-Image direkt bauen
         run: |
           export ARCH=arm64 SUBARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
           make $(basename $(find arch/arm64/configs -name "*a5y17lte*" | head -n 1))
           make -j$(nproc) KCFLAGS="-Wno-error" Image dtbs
           test -f arch/arm64/boot/Image
+      - name: OneUI 2.5 Boot-Image & TWRP Flash-ZIP bauen
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/output" "$GITHUB_WORKSPACE/ultra_zip/META-INF/com/google/android"
+          DTB_FILE=$(find arch/arm64/boot -name "*.dtb" | head -n 1)
+          AIK_DIR=$(find "$GITHUB_WORKSPACE/rise" -ipath "*OneUI*" -name "repackimg.sh" -printf "%h\n" | head -n 1)
+          [ -z "$AIK_DIR" ] && AIK_DIR=$(find "$GITHUB_WORKSPACE/rise" -name "repackimg.sh" -printf "%h\n" | tail -n 1)
+          cp "$GITHUB_WORKSPACE/arch/arm64/boot/Image" "$AIK_DIR/split_img/boot.img-zImage"
+          [ -n "$DTB_FILE" ] && cp "$DTB_FILE" "$AIK_DIR/split_img/boot.img-dtb"
+          (cd "$AIK_DIR" && chmod +x repackimg.sh && ./repackimg.sh) || true
+          NEW_BOOT=$(ls -t $(find "$GITHUB_WORKSPACE/rise" -type f -name "*.img") 2>/dev/null | head -n 1)
+          cp "$NEW_BOOT" "$GITHUB_WORKSPACE/ultra_zip/boot.img"
+          printf "SEANDROIDENFORCE" >> "$GITHUB_WORKSPACE/ultra_zip/boot.img"
+          cp "$GITHUB_WORKSPACE/ultra_zip/boot.img" "$GITHUB_WORKSPACE/output/boot_Samsung_Galaxy_A5_Ultra_Pure.img"
+          convert -size 1080x1920 xc:black -font DejaVu-Sans-Bold -gravity center -fill white -pointsize 46 -annotate +0-110 "SAMSUNG" -fill white -pointsize 82 -annotate +0-20 "Galaxy A5 Ultra" -fill "#D0D0D0" -pointsize 26 -annotate +0+720 "POWERED BY" -fill white -pointsize 44 -annotate +0+765 "android" -quality 95 "$GITHUB_WORKSPACE/ultra_zip/logo.jpg" || true
+          printf '#!/system/bin/sh\nsleep 25\nsetenforce 0 2>/dev/null\nsysctl -w kernel.panic=0 2>/dev/null; sysctl -w kernel.panic_on_oops=0 2>/dev/null\nstop diagexe 2>/dev/null; stop ddexe 2>/dev/null\nfor cpu in /sys/devices/system/cpu/cpu[0-7]/cpufreq; do echo 344000 > "$cpu/scaling_min_freq" 2>/dev/null; echo 2054000 > "$cpu/scaling_max_freq" 2>/dev/null; done\nfor c in /sys/devices/system/cpu/cpu[0-7]/online; do echo 1 > "$c" 2>/dev/null; done\necho 1248 > /sys/devices/11400000.mali/max_clock 2>/dev/null; echo 1 > /sys/devices/11400000.mali/highspeed_load 2>/dev/null\necho 10000 > /sys/class/timed_output/vibrator/intensity 2>/dev/null; echo 10000 > /sys/devices/virtual/timed_output/vibrator/intensity 2>/dev/null\necho 1 > /sys/kernel/mm/ksm/run 2>/dev/null\nswapoff /dev/block/zram0 2>/dev/null; echo 1 > /sys/block/zram0/reset 2>/dev/null; echo 8 > /sys/block/zram0/max_comp_streams 2>/dev/null; echo lz4 > /sys/block/zram0/comp_algorithm 2>/dev/null; echo 4831838208 > /sys/block/zram0/disksize 2>/dev/null; mkswap /dev/block/zram0 2>/dev/null; swapon /dev/block/zram0 2>/dev/null\necho 100 > /proc/sys/vm/swappiness 2>/dev/null; echo 0 > /proc/sys/vm/page-cluster 2>/dev/null; echo 40 > /proc/sys/vm/vfs_cache_pressure 2>/dev/null; echo 35 > /proc/sys/vm/dirty_ratio 2>/dev/null; echo 15 > /proc/sys/vm/dirty_background_ratio 2>/dev/null; echo 32768 > /proc/sys/vm/min_free_kbytes 2>/dev/null\nfor q in /sys/block/mmcblk*/queue; do echo fiops > "$q/scheduler" 2>/dev/null; echo 4096 > "$q/read_ahead_kb" 2>/dev/null; echo 512 > "$q/nr_requests" 2>/dev/null; echo 0 > "$q/iostats" 2>/dev/null; done\nfstrim -v /data 2>/dev/null; fstrim -v /cache 2>/dev/null\nsysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null; sysctl -w net.ipv4.tcp_fastopen=3 2>/dev/null; sysctl -w net.ipv4.tcp_low_latency=1 2>/dev/null; sysctl -w net.core.default_qdisc=fq_codel 2>/dev/null; sysctl -w net.core.rmem_max=16777216 2>/dev/null; sysctl -w net.core.wmem_max=16777216 2>/dev/null\necho 1 > /sys/class/sec/tsp/cmd_dt2w 2>/dev/null\nsettings put system min_refresh_rate 80.0 2>/dev/null; settings put system peak_refresh_rate 80.0 2>/dev/null; settings put system haptic_feedback_enabled 1 2>/dev/null; settings put system VIB_FEEDBACK_MAGNITUDE 5 2>/dev/null\nsettings put global window_animation_scale 0.25 2>/dev/null; settings put global transition_animation_scale 0.25 2>/dev/null; settings put global animator_duration_scale 0.25 2>/dev/null\ncmd package bg-dexopt-job 2>/dev/null &\n' > "$GITHUB_WORKSPACE/ultra_zip/ultra_autotune.sh"
