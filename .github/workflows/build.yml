@@ -98,30 +98,11 @@ jobs:
           RAMDISK=$(find rise -name "*ramdisk*" -type f | head -n 1)
           echo "Image: arch/arm64/boot/Image | DTB: $DTB_FILE | Ramdisk: $RAMDISK"
 
-          python3 -c '
-          import os, struct
-          k = open("arch/arm64/boot/Image", "rb").read()
-          dtb_path = os.environ.get("DTB_FILE", "")
-          ram_path = os.environ.get("RAMDISK", "")
-          d = open(dtb_path, "rb").read() if dtb_path and os.path.isfile(dtb_path) else b""
-          r = open(ram_path, "rb").read() if ram_path and os.path.isfile(ram_path) else b""
-          def pad(b): return b + b"\x00" * ((2048 - len(b) % 2048) % 2048)
-          hdr = struct.pack("<8sIIIIIIIIII16s512s", b"ANDROID!", len(k), 0x10008000, len(r), 0x11000000, 0, 0x10f00000, 0x10000100, 2048, len(d), 0, b"A5Ultra", b"")
-          open("ultra_zip/boot.img", "wb").write(pad(hdr) + pad(k) + pad(r) + pad(d))
-          ' DTB_FILE="$DTB_FILE" RAMDISK="$RAMDISK"
+          python3 -c 'import os, struct; k = open("arch/arm64/boot/Image", "rb").read(); dtb_p = os.environ.get("DTB_FILE", ""); ram_p = os.environ.get("RAMDISK", ""); d = open(dtb_p, "rb").read() if dtb_p and os.path.isfile(dtb_p) else b""; r = open(ram_p, "rb").read() if ram_p and os.path.isfile(ram_p) else b""; pad = lambda b: b + b"\x00" * ((2048 - len(b) % 2048) % 2048); hdr = struct.pack("<8sIIIIIIIIII16s512s", b"ANDROID!", len(k), 0x10008000, len(r), 0x11000000, 0, 0x10f00000, 0x10000100, 2048, len(d), 0, b"A5Ultra", b""); open("ultra_zip/boot.img", "wb").write(pad(hdr) + pad(k) + pad(r) + pad(d))' DTB_FILE="$DTB_FILE" RAMDISK="$RAMDISK"
 
           cp "$GITHUB_WORKSPACE/ultra_zip/boot.img" "$GITHUB_WORKSPACE/output/boot_Samsung_Galaxy_A5_Ultra.img"
 
-          python3 -c '
-          from PIL import Image, ImageDraw
-          img = Image.new("RGB", (1080, 1920), "black")
-          d = ImageDraw.Draw(img)
-          d.text((430, 780), "SAMSUNG", fill="white")
-          d.text((340, 860), "GALAXY A5 ULTRA", fill=(0, 168, 255))
-          d.text((250, 950), "80Hz AMOLED  |  2054MHz CPU  |  1248MHz GPU", fill=(180, 180, 180))
-          d.text((280, 1650), "4K 80Mbit Cam  |  Dolby Stereo  |  Apex Ultra", fill=(110, 110, 110))
-          img.save("ultra_zip/logo.jpg", quality=92)
-          '
+          python3 -c 'from PIL import Image, ImageDraw; img = Image.new("RGB", (1080, 1920), "black"); d = ImageDraw.Draw(img); d.text((430, 780), "SAMSUNG", fill="white"); d.text((340, 860), "GALAXY A5 ULTRA", fill=(0, 168, 255)); d.text((250, 950), "80Hz AMOLED  |  2054MHz CPU  |  1248MHz GPU", fill=(180, 180, 180)); d.text((280, 1650), "4K 80Mbit Cam  |  Dolby Stereo  |  Apex Ultra", fill=(110, 110, 110)); img.save("ultra_zip/logo.jpg", quality=92)'
 
           printf '#!/system/bin/sh\nsleep 20\nsetenforce 0 2>/dev/null\nstop diagexe 2>/dev/null\nstop ddexe 2>/dev/null\nfor cpu in /sys/devices/system/cpu/cpu[0-7]/cpufreq; do\n  [ -d "$cpu" ] && echo 344000 > "$cpu/scaling_min_freq" 2>/dev/null && echo 2054000 > "$cpu/scaling_max_freq" 2>/dev/null\ndone\nfor c in /sys/devices/system/cpu/cpu[0-7]/online; do\n  echo 1 > "$c" 2>/dev/null\ndone\nfor gov in /sys/devices/system/cpu/cpu*/cpufreq/interactive; do\n  if [ -d "$gov" ]; then\n    echo 45 > "$gov/go_hispeed_load" 2>/dev/null\n    echo 2054000 > "$gov/hispeed_freq" 2>/dev/null\n    echo 0 > "$gov/above_hispeed_delay" 2>/dev/null\n    echo 10000 > "$gov/timer_rate" 2>/dev/null\n    echo 40000 > "$gov/min_sample_time" 2>/dev/null\n  fi\ndone\nswapoff /dev/block/zram0 2>/dev/null\necho 1 > /sys/block/zram0/reset 2>/dev/null\necho lz4 > /sys/block/zram0/comp_algorithm 2>/dev/null\necho 3221225472 > /sys/block/zram0/disksize 2>/dev/null\nmkswap /dev/block/zram0 2>/dev/null\nswapon /dev/block/zram0 2>/dev/null\necho 100 > /proc/sys/vm/swappiness 2>/dev/null\necho 50 > /proc/sys/vm/vfs_cache_pressure 2>/dev/null\necho "1536,2048,4096,8192,16384,24576" > /sys/module/lowmemorykiller/parameters/minfree 2>/dev/null\nfor q in /sys/block/mmcblk*/queue; do\n  echo fiops > "$q/scheduler" 2>/dev/null || echo deadline > "$q/scheduler" 2>/dev/null\n  echo 2048 > "$q/read_ahead_kb" 2>/dev/null\n  echo 256 > "$q/nr_requests" 2>/dev/null\n  echo 0 > "$q/iostats" 2>/dev/null\ndone\nfstrim -v /data 2>/dev/null\nfstrim -v /cache 2>/dev/null\nsysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null\nsysctl -w net.ipv4.tcp_fastopen=3 2>/dev/null\nsysctl -w net.core.rmem_max=8388608 2>/dev/null\nsysctl -w net.core.wmem_max=8388608 2>/dev/null\nsettings put global window_animation_scale 0.5 2>/dev/null\nsettings put global transition_animation_scale 0.5 2>/dev/null\nsettings put global animator_duration_scale 0.5 2>/dev/null\nsettings put global force_resizable_activities 1 2>/dev/null\nsettings put global enable_freeform_support 1 2>/dev/null\ncmd package bg-dexopt-job 2>/dev/null &\n' > "$GITHUB_WORKSPACE/ultra_zip/ultra_autotune.sh"
 
