@@ -13,7 +13,7 @@ jobs:
       - name: Build-Pakete installieren
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python2
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python2 python3-pil
 
       - name: Samsung Galaxy A5 Ultra Adaptive Flagship Hardware Unlock
         run: |
@@ -86,19 +86,24 @@ jobs:
 
       - name: All-In-One TWRP Flash-ZIP (Bootlogo + 4K Cam + Stereo + 3GB ZRAM + Adaptive Tune) bauen
         run: |
+          set -e
           mkdir -p ultra_zip/META-INF/com/google/android
-          BOOT_IMG=$(find rise -name "boot_*.img" | head -n 1)
+          BOOT_IMG=$(find . -maxdepth 3 -name "*boot*.img" | head -n 1)
+          echo "Gefundenes Boot-Image: $BOOT_IMG"
           test -f "$BOOT_IMG"
           cp "$BOOT_IMG" ultra_zip/boot.img
 
-          # Eigenes Full-HD Bootlogo (logo.jpg) fuer Samsung Galaxy A5 Ultra generieren
-          convert -size 1080x1920 xc:black \
-            -gravity center \
-            -fill white -pointsize 52 -annotate +0-140 "SAMSUNG" \
-            -fill "#00a8ff" -pointsize 74 -annotate +0-40 "GALAXY A5 ULTRA" \
-            -fill "#aaaaaa" -pointsize 32 -annotate +0+70 "75Hz AMOLED  |  2054MHz CPU  |  1248MHz GPU" \
-            -fill "#666666" -pointsize 26 -annotate +0+650 "4K UHD Pro Cam  |  Stereo Hi-Fi  |  Exynos Ultra" \
-            -quality 92 ultra_zip/logo.jpg
+          # Eigenes Full-HD Bootlogo (logo.jpg) sicher per Python erzeugen
+          python3 -c '
+          from PIL import Image, ImageDraw
+          img = Image.new("RGB", (1080, 1920), "black")
+          d = ImageDraw.Draw(img)
+          d.text((430, 780), "SAMSUNG", fill="white")
+          d.text((340, 860), "GALAXY A5 ULTRA", fill=(0, 168, 255))
+          d.text((250, 950), "75Hz AMOLED  |  2054MHz CPU  |  1248MHz GPU", fill=(180, 180, 180))
+          d.text((290, 1650), "4K UHD Pro Cam  |  Stereo Hi-Fi  |  Exynos Ultra", fill=(110, 110, 110))
+          img.save("ultra_zip/logo.jpg", quality=92)
+          '
 
           cat << 'EOF' > ultra_zip/ultra_autotune.sh
           #!/system/bin/sh
@@ -164,8 +169,3 @@ jobs:
             sed -i 's/ro.product.vendor.model=.*/ro.product.vendor.model=Galaxy A5 Ultra/g' "$PROP"
             grep -q "Samsung Galaxy A5 Ultra" "$PROP" || cat << 'PROPEOF' >> "$PROP"
 
-          # Samsung Galaxy A5 Ultra Adaptive Flagship System Unlock
-          ro.boot.warranty_bit=0
-          ro.warranty_bit=0
-          debug.sf.hw=1
-          debug.egl.hw=1
