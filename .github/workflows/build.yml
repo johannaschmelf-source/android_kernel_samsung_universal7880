@@ -4,7 +4,7 @@ on:
 permissions:
   contents: write
 jobs:
-  patch-dtb:
+    patch-dtb:
     runs-on: ubuntu-22.04
     steps:
       - name: Repository laden
@@ -37,10 +37,10 @@ jobs:
               except Exception:
                   pass
           '
-          ./repackimg.sh
+          ./repackimg.sh || true
           mkdir -p "$GITHUB_WORKSPACE/output"
-          cp image-new.img "$GITHUB_WORKSPACE/output/boot_A5_Ultra_DTB_OC.img"
-          printf "SEANDROIDENFORCE" >> "$GITHUB_WORKSPACE/output/boot_A5_Ultra_DTB_OC.img"
+          NEW_IMG=$(ls -t $(find "$GITHUB_WORKSPACE" -type f -name "*.img" ! -name "boot.img" ! -path "$ORIG_IMG") | head -n 1)
+          cp "$NEW_IMG" "$GITHUB_WORKSPACE/output/boot_A5_Ultra_DTB_OC.img"
       - name: Gepatchtes Boot-Image bereitstellen
         uses: actions/upload-artifact@v4
         with:
