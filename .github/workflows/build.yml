@@ -13,131 +13,159 @@ jobs:
       - name: Build-Pakete installieren
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python2 fonts-dejavu-core
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python2
 
-      - name: Samsung Galaxy A5 Ultra Hardware Unlock
+      - name: Samsung Galaxy A5 Ultra Adaptive Flagship Hardware Unlock
         run: |
-          # 0. Offizieller Kernel-Name: -Samsung-Galaxy-A5-Ultra
-          find arch/arm64/configs -name "*a5y17lte*" -exec sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-Samsung-Galaxy-A5-Ultra"/g' {} +
+          set -e
+          DTS_FILE=$(find arch/arm64/boot/dts -name "exynos7880.dtsi" | head -n 1)
+          GPU_FILE=$(find drivers/gpu/arm -name "gpu_exynos7880.c" | head -n 1)
+          CPU_CAL=$(find drivers/cpufreq -name "exynos-mp-cpufreq-cal.c" | head -n 1)
+          DEFCONFIG=$(find arch/arm64/configs -name "*a5y17lte*" | head -n 1)
 
-          # 1. CPU: Sicherer Boot auf 1794/2002 MHz + entsperrte Rekordstufen (2080 / 2054 / 2028 / 2002 MHz)
-          sed -i 's/cl0_boot_max_qos = <2002000>;/cl0_boot_max_qos = <1794000>;/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
-          sed -i 's/cl0_boot_min_qos = <2002000>;/cl0_boot_min_qos = <1794000>;/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
-          sed -i 's/cl1_boot_max_qos = <2002000>;/cl1_boot_max_qos = <1794000>;/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
-          sed -i 's/cl1_boot_min_qos = <2002000>;/cl1_boot_min_qos = <1794000>;/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+          test -f "$DTS_FILE" && test -f "$GPU_FILE" && test -f "$DEFCONFIG"
 
-          sed -i 's/0  2002000  1200000  1014000/0  2080000  1250000  1794000/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
-          sed -i 's/1  1872000  1200000  1014000/1  2054000  1237500  1794000/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
-          sed -i 's/2  1794000  1100000  1014000/2  2028000  1212500  1794000/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
-          sed -i 's/3  1690000  1100000  1014000/3  2002000  1200000  1794000/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
-          sed -i 's/1  1924000  1200000  1014000/1  2054000  1237500  1794000/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+          # 1. Offizielle Kernel-Identitaet & Sicherheitsebene (SELinux Permissive + Hardware-Crypto)
+          sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-Samsung-Galaxy-A5-Ultra-Adaptive"/g' "$DEFCONFIG"
+          grep -q "CONFIG_LOCALVERSION=" "$DEFCONFIG" || echo 'CONFIG_LOCALVERSION="-Samsung-Galaxy-A5-Ultra-Adaptive"' >> "$DEFCONFIG"
+          echo "CONFIG_SECURITY_SELINUX_DEVELOP=y" >> "$DEFCONFIG"
+          echo "CONFIG_CRYPTO_CRC32C=y" >> "$DEFCONFIG"
+          echo "CONFIG_CRYPTO_LZ4=y" >> "$DEFCONFIG"
 
-          sed -i 's/ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate/i >= 4 \&\& ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate/g' drivers/cpufreq/exynos-mp-cpufreq-cal.c
-          sed -i 's/cal_max_freq = ptr_temp_table\[0\].rate;/cal_max_freq = ptr->freq_table\[3\].frequency;/g' drivers/cpufreq/exynos-mp-cpufreq-cal.c
+          # 2. 75Hz Super-AMOLED Overclocking & High Brightness Mode (HBM) Unlock
+          find arch/arm64/boot/dts -type f -name "*.dts*" -exec sed -i 's/refresh = <60>;/refresh = <75>;/g; s/fps = <60>;/fps = <75>;/g; s/panel-refresh-rate = <60>;/panel-refresh-rate = <75>;/g' {} + 2>/dev/null || true
+          find drivers/video/fbdev/exynos -type f -name "*.c" -exec sed -i 's/hbm_mode = 0/hbm_mode = 1/g' {} + 2>/dev/null || true
 
-          # 2. LPDDR4 RAM (MIF) auf 1794 MHz + 10ms Sofort-Reaktion (15% Schwelle)
-          sed -i 's/freq_info = <1539000 450000 450000 1539000 450000 1539000>;/freq_info = <1539000 450000 450000 1794000 450000 1794000>;/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
-          sed -i 's/upthreshold = <70>;/upthreshold = <15>;/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
-          sed -i 's/polling_ms = <0>;/polling_ms = <10>;/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+          # 3. CPU auf 2054 MHz (Platz 0) & 2002 MHz (Platz 1) hochziehen (sicherer Boot auf 1794 MHz)
+          sed -i 's/cl0_boot_max_qos = <2002000>;/cl0_boot_max_qos = <1794000>;/g' "$DTS_FILE"
+          sed -i 's/cl1_boot_max_qos = <2002000>;/cl1_boot_max_qos = <1794000>;/g' "$DTS_FILE"
+          sed -i 's/0  2002000  1200000  1014000/0  2054000  1250000  1014000/g' "$DTS_FILE"
+          sed -i 's/1  1872000  1200000  1014000/1  2002000  1200000  1014000/g' "$DTS_FILE"
+          sed -i 's/1  1924000  1200000  1014000/1  2002000  1200000  1014000/g' "$DTS_FILE"
+          if [ -f "$CPU_CAL" ]; then
+            sed -i 's/if (ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/if (i >= 1 \&\& ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/g' "$CPU_CAL"
+          fi
 
-          # 3. Interner System-Bus (INT) auf 624 MHz übertakten + 20% Schwelle
-          sed -i 's/0 534000 900000/0 624000 962500/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
-          sed -i 's/freq_info = <534000 134000 134000 534000 134000 534000>;/freq_info = <534000 134000 134000 624000 134000 624000>;/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
-          sed -i 's/upthreshold = <95>;/upthreshold = <20>;/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+          # 4. GPU Limit-Break: 1248 MHz & 1196 MHz freischalten + sparsamer 343 MHz Leerlauf
+          sed -i 's/{1138, 950000, 0, 98, 100, 1, 0, 1539000, 400000, 1482000, CPU_MAX},/{1248, 1025000, 0, 98, 100, 1, 0, 1794000, 400000, 1482000, CPU_MAX},\n\t{1196, 990000, 0, 98, 100, 1, 0, 1794000, 400000, 1482000, CPU_MAX},\n\t{1138, 950000, 0, 98, 100, 1, 0, 1794000, 400000, 1482000, CPU_MAX},/g' "$GPU_FILE"
+          sed -i 's/{GPU_MAX_CLOCK, 1138}/{GPU_MAX_CLOCK, 1196}/g' "$GPU_FILE"
+          sed -i 's/{GPU_MAX_CLOCK_LIMIT, 1138}/{GPU_MAX_CLOCK_LIMIT, 1248}/g' "$GPU_FILE"
+          sed -i 's/{GPU_MAX_VOLTAGE, [0-9]*}/{GPU_MAX_VOLTAGE, 1100000}/g' "$GPU_FILE"
 
-          # 4. Kamera-ISP & Video-MFC-Prozessor übertakten
-          sed -i 's/0 530000 900000/0 580000 950000/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
-          sed -i 's/0 468000 900000/0 520000 950000/g' arch/arm64/boot/dts/exynos/exynos7880.dtsi
+          # 5. LPDDR4 RAM-Takt (MIF) auf maximale 1794 MHz freischalten (450 MHz im Leerlauf)
+          sed -i 's/freq_info = <1539000 450000 450000 1539000 450000 1539000>;/freq_info = <1539000 450000 450000 1794000 450000 1794000>;/g' "$DTS_FILE"
 
-          # 5. Mali-T830 GPU: Sicherer Start auf 1138 MHz + entsperrte Spitzen (1248 / 1222 / 1196 / 1138 MHz)
-          sed -i 's/{1138, 950000, 0, 98, 100, 1, 0, 1539000, 400000/{1248, 1000000, 0, 90, 100, 2, 0, 1794000, 624000/g' drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_exynos7880.c
-          sed -i 's/{1086, 925000, 0, 98, 100, 1, 0, 1539000, 400000/{1222, 985000, 0, 90, 100, 2, 0, 1794000, 624000/g' drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_exynos7880.c
-          sed -i 's/{1034, 900000, 0, 98, 100, 1, 0, 1539000, 400000/{1196, 975000, 0, 90, 100, 2, 0, 1794000, 624000/g' drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_exynos7880.c
-          sed -i 's/{962, 875000, 0, 98, 100, 1, 0, 1539000, 400000/{1138, 950000, 0, 90, 100, 2, 0, 1794000, 624000/g' drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_exynos7880.c
-          sed -i 's/{GPU_MAX_CLOCK, 1138}/{GPU_MAX_CLOCK, 1138}/g' drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_exynos7880.c
-          sed -i 's/{GPU_MAX_CLOCK_LIMIT, 1138}/{GPU_MAX_CLOCK_LIMIT, 1248}/g' drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_exynos7880.c
+          # 6. Flagship Input-Booster, Touchscreen-Latenz & Fingerabdruck-Treiber beschleunigen
+          find arch/arm64/boot/dts -type f -name "*.dts*" -exec sed -i 's/ibi,cpu_freq = <[^>]*>/ibi,cpu_freq = <2054000 1794000 0>/g; s/ibi,mif_freq = <[^>]*>/ibi,mif_freq = <1794000 1539000 0>/g' {} + 2>/dev/null || true
+          find drivers/fingerprint -type f -name "*.c" -exec sed -i 's/msleep(20)/msleep(5)/g; s/msleep(10)/msleep(3)/g' {} + 2>/dev/null || true
+          find drivers/input/touchscreen -type f -name "*.c" -exec sed -i 's/msleep(20)/msleep(5)/g; s/msleep(15)/msleep(4)/g' {} + 2>/dev/null || true
 
-          # 6. Super AMOLED Display auf 72 Hz übertakten
-          find drivers/video -name "*s6e3fa3*.h" -exec sed -i 's/#define S6E3FA3_FPS[[:space:]]*60/#define S6E3FA3_FPS 72/g' {} +
+          # 7. Thermal-Throttling entfesseln (erst ab 95 Grad)
+          sed -i 's/{TEMP_THROTTLING1, [0-9]*}/{TEMP_THROTTLING1, 95}/g' "$GPU_FILE"
+          sed -i 's/{TEMP_THROTTLING2, [0-9]*}/{TEMP_THROTTLING2, 97}/g' "$GPU_FILE"
+          sed -i 's/{TEMP_THROTTLING3, [0-9]*}/{TEMP_THROTTLING3, 99}/g' "$GPU_FILE"
+          sed -i 's/{TEMP_THROTTLING4, [0-9]*}/{TEMP_THROTTLING4, 101}/g' "$GPU_FILE"
 
-          # 7. Akkusicherer Schnelllade-Boost (1950 mA AC / 850 mA USB)
-          find arch/arm64/boot/dts/exynos -name "*a5y17lte*.dtsi" -exec sed -i 's/battery,input_current_limit = <1650/battery,input_current_limit = <1950/g' {} +
-          find arch/arm64/boot/dts/exynos -name "*a5y17lte*.dtsi" -exec sed -i 's/battery,fast_charging_current = <1650/battery,fast_charging_current = <1950/g' {} +
-          find arch/arm64/boot/dts/exynos -name "*a5y17lte*.dtsi" -exec sed -i 's/<500 500>/<850 850>/g' {} +
+          # 8. Ladeelektronik (S2MU004) auf 2500 mA Fast-Charge & 1200 mA USB entsperren
+          find drivers/battery* -type f -name "*.c" -exec sed -i 's/1650/2500/g; s/1800/2500/g; s/475/1200/g; s/500/1200/g' {} + 2>/dev/null || true
 
-          # 8. Flaggschiff-Kernel-Tweaks (BBR, 1000Hz Scheduler, F2FS, LZ4-ZRAM, FIOPS, Cortex-A53 Instruktionen)
-          sed -i 's/-mcpu=generic/-mcpu=cortex-a53+crc+crypto/g' arch/arm64/Makefile || true
-          find arch/arm64/configs -name "*a5y17lte*" -exec sed -i 's/CONFIG_HZ_250=y/# CONFIG_HZ_250 is not set\nCONFIG_HZ_1000=y/g' {} +
-          find arch/arm64/configs -name "*a5y17lte*" -exec sed -i 's/CONFIG_HZ_300=y/# CONFIG_HZ_300 is not set\nCONFIG_HZ_1000=y/g' {} +
-          find arch/arm64/configs -name "*a5y17lte*" -exec sed -i 's/CONFIG_HZ=250/CONFIG_HZ=1000/g' {} +
-          find arch/arm64/configs -name "*a5y17lte*" -exec sed -i 's/CONFIG_HZ=300/CONFIG_HZ=1000/g' {} +
-          find arch/arm64/configs -name "*a5y17lte*" -exec bash -c 'echo -e "\nCONFIG_TCP_CONG_BBR=y\nCONFIG_DEFAULT_BBR=y\nCONFIG_DEFAULT_TCP_CONG=\"bbr\"\nCONFIG_ZRAM_LZ4_COMPRESS=y\nCONFIG_F2FS_FS=y\nCONFIG_DEFAULT_FIOPS=y" >> "$1"' _ {} \;
-
-          # 9. Kontrolliertes Chip-Thermal-Limit (86-92°C)
-          sed -i 's/TEMP_THROTTLING1, 70/TEMP_THROTTLING1, 86/g' drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_exynos7880.c
-          sed -i 's/TEMP_THROTTLING2, 75/TEMP_THROTTLING2, 89/g' drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_exynos7880.c
-          sed -i 's/TEMP_THROTTLING3, 80/TEMP_THROTTLING3, 92/g' drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_exynos7880.c
+          # 9. 1000Hz Ultra-Timer, eMMC No-CRC Speicher-Turbo & Google BBR Netzwerk-Stack
+          echo "CONFIG_HZ_1000=y" >> "$DEFCONFIG"
+          echo "# CONFIG_HZ_250 is not set" >> "$DEFCONFIG"
+          echo "# CONFIG_MMC_SPI_CRC_ON is not set" >> "$DEFCONFIG"
+          echo "CONFIG_TCP_CONG_ADVANCED=y" >> "$DEFCONFIG"
+          echo "CONFIG_TCP_CONG_BBR=y" >> "$DEFCONFIG"
+          echo "CONFIG_DEFAULT_BBR=y" >> "$DEFCONFIG"
+          echo 'CONFIG_DEFAULT_TCP_CONG="bbr"' >> "$DEFCONFIG"
+          find drivers/mmc -type f -name "*.c" -exec sed -i 's/bool use_spi_crc = 1;/bool use_spi_crc = 0;/g' {} + 2>/dev/null || true
 
       - name: Kernel bauen (Samsung Galaxy A5 Ultra)
         run: |
           chmod +x build_rise.sh
           printf "y\n7\na5\nn\n" | ./build_rise.sh
 
-      - name: All-In-One TWRP Flash-ZIP (Kernel + Bootlogo + System-Identität) bauen
+      - name: All-In-One TWRP Flash-ZIP (Bootlogo + 4K Cam + Stereo + 3GB ZRAM + Adaptive Tune) bauen
         run: |
-          mkdir -p flash_zip/META-INF/com/google/android
-          cp rise/boot_*.img flash_zip/boot.img
+          mkdir -p ultra_zip/META-INF/com/google/android
+          BOOT_IMG=$(find rise -name "boot_*.img" | head -n 1)
+          test -f "$BOOT_IMG"
+          cp "$BOOT_IMG" ultra_zip/boot.img
 
-          # Originalgetreues Samsung Galaxy A5 Ultra Bootlogo erstellen
+          # Eigenes Full-HD Bootlogo (logo.jpg) fuer Samsung Galaxy A5 Ultra generieren
           convert -size 1080x1920 xc:black \
-            -font DejaVu-Sans-Bold -gravity center -fill white -pointsize 56 -annotate +0-75 "Samsung" \
-            -font DejaVu-Sans-Bold -fill white -pointsize 74 -annotate +0+10 "Galaxy A5" \
-            -font DejaVu-Sans-Bold -fill white -pointsize 54 -annotate +0+95 "Ultra" \
-            -font DejaVu-Sans -fill "#bbbbbb" -pointsize 28 -annotate +0+770 "Secured by Knox" \
-            -font DejaVu-Sans-Bold -fill "#dddddd" -pointsize 32 -annotate +0+825 "Powered by Android" \
-            -quality 92 flash_zip/logo.jpg
+            -gravity center \
+            -fill white -pointsize 52 -annotate +0-140 "SAMSUNG" \
+            -fill "#00a8ff" -pointsize 74 -annotate +0-40 "GALAXY A5 ULTRA" \
+            -fill "#aaaaaa" -pointsize 32 -annotate +0+70 "75Hz AMOLED  |  2054MHz CPU  |  1248MHz GPU" \
+            -fill "#666666" -pointsize 26 -annotate +0+650 "4K UHD Pro Cam  |  Stereo Hi-Fi  |  Exynos Ultra" \
+            -quality 92 ultra_zip/logo.jpg
 
-          # TWRP Shell-Installer erstellen
-          cat << 'EOF' > flash_zip/META-INF/com/google/android/update-binary
-          #!/sbin/sh
-          OUTFD=/proc/self/fd/$2
-          ZIP="$3"
-          ui_print() { echo "ui_print $1" > $OUTFD; echo "ui_print" > $OUTFD; }
+          cat << 'EOF' > ultra_zip/ultra_autotune.sh
+          #!/system/bin/sh
+          sleep 20
 
-          ui_print "********************************************"
-          ui_print "      Samsung Galaxy A5 Ultra Installer     "
-          ui_print "********************************************"
+          # 1. SELinux Permissive fuer volle Treiber-, 4K-Kamera- & Audio-Freiheit
+          setenforce 0 2>/dev/null
 
-          mkdir -p /tmp/a5ultra
-          unzip -o "$ZIP" -d /tmp/a5ultra
-
-          ui_print "- Flashe Samsung Galaxy A5 Ultra Kernel..."
-          dd if=/tmp/a5ultra/boot.img of=/dev/block/platform/13540000.dwmmc0/by-name/BOOT
-
-          ui_print "- Installiere Samsung Galaxy A5 Ultra Startlogo..."
-          PARAM_DEV="/dev/block/platform/13540000.dwmmc0/by-name/PARAM"
-          if [ -e "$PARAM_DEV" ]; then
-            dd if="$PARAM_DEV" of=/sdcard/param_backup.bin
-            mkdir -p /tmp/param_work
-            cd /tmp/param_work
-            tar -xf "$PARAM_DEV" 2>/dev/null || true
-            cp /tmp/a5ultra/logo.jpg /tmp/param_work/logo.jpg
-            tar -cf /tmp/new_param.tar *
-            dd if=/tmp/new_param.tar of="$PARAM_DEV"
-          fi
-
-          ui_print "- Setze System-Modellname auf Samsung Galaxy A5 Ultra..."
-          mount /system 2>/dev/null || mount -o rw,remount /system 2>/dev/null || true
-          for PROP in /system/build.prop /system/system/build.prop; do
-            if [ -f "$PROP" ]; then
-              sed -i 's/ro.product.model=.*/ro.product.model=Samsung Galaxy A5 Ultra/g' "$PROP"
-              sed -i 's/ro.product.system.model=.*/ro.product.system.model=Samsung Galaxy A5 Ultra/g' "$PROP"
-              sed -i 's/ro.config.marketing_name=.*/ro.config.marketing_name=Samsung Galaxy A5 Ultra/g' "$PROP"
+          # 2. Adaptiver Flagship-Governor (344MHz im Leerlauf, blitzschnell 2054MHz unter Last)
+          for cpu in /sys/devices/system/cpu/cpu[0-7]/cpufreq; do
+            if [ -d "$cpu" ]; then
+              echo 344000 > "$cpu/scaling_min_freq" 2>/dev/null
+              echo 2054000 > "$cpu/scaling_max_freq" 2>/dev/null
+            fi
+          done
+          for gov in /sys/devices/system/cpu/cpu*/cpufreq/interactive; do
+            if [ -d "$gov" ]; then
+              echo 45 > "$gov/go_hispeed_load" 2>/dev/null
+              echo 2054000 > "$gov/hispeed_freq" 2>/dev/null
+              echo 0 > "$gov/above_hispeed_delay" 2>/dev/null
+              echo 10000 > "$gov/timer_rate" 2>/dev/null
+              echo 40000 > "$gov/min_sample_time" 2>/dev/null
             fi
           done
 
-          rm -rf /tmp/a5ultra /tmp/param_work /tmp/new_param.tar
-          ui_print "- Fertig! Bitte jetzt noch Magisk-ZIP flashen."
+          # 3. 3.0 GB ZRAM (LZ4) -> 6GB RAM Multitasking-Erlebnis
+          swapoff /dev/block/zram0 2>/dev/null
+          echo 1 > /sys/block/zram0/reset 2>/dev/null
+          echo lz4 > /sys/block/zram0/comp_algorithm 2>/dev/null
+          echo 3221225472 > /sys/block/zram0/disksize 2>/dev/null
+          mkswap /dev/block/zram0 2>/dev/null
+          swapon /dev/block/zram0 2>/dev/null
+          echo 100 > /proc/sys/vm/swappiness 2>/dev/null
+          echo 50 > /proc/sys/vm/vfs_cache_pressure 2>/dev/null
+
+          # 4. eMMC Flash-Turbo & Auto-TRIM fuer dauerhaften Neuzustand-Speed
+          for q in /sys/block/mmcblk*/queue; do
+            echo fiops > "$q/scheduler" 2>/dev/null || echo deadline > "$q/scheduler" 2>/dev/null
+            echo 2048 > "$q/read_ahead_kb" 2>/dev/null
+            echo 256 > "$q/nr_requests" 2>/dev/null
+            echo 0 > "$q/iostats" 2>/dev/null
+          done
+          fstrim -v /data 2>/dev/null
+          fstrim -v /cache 2>/dev/null
+
+          # 5. Google BBR Netzwerk, 0.5x Flagship-Animationen & App-Speed-Kompilierung
+          sysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null
+          settings put global window_animation_scale 0.5 2>/dev/null
+          settings put global transition_animation_scale 0.5 2>/dev/null
+          settings put global animator_duration_scale 0.5 2>/dev/null
+          cmd package bg-dexopt-job 2>/dev/null &
           EOF
 
-          echo "#Dummy" > flash_zip/META-INF/com/google/android/updater-script
+          cat << 'EOF' > ultra_zip/ultra_patch.sh
+          #!/sbin/sh
+          SYS="/system"
+          [ -d "/system/system" ] && SYS="/system/system"
+          PROP="$SYS/build.prop"
+
+          if [ -f "$PROP" ]; then
+            sed -i 's/ro.product.model=.*/ro.product.model=Galaxy A5 Ultra/g' "$PROP"
+            sed -i 's/ro.product.system.model=.*/ro.product.system.model=Galaxy A5 Ultra/g' "$PROP"
+            sed -i 's/ro.product.vendor.model=.*/ro.product.vendor.model=Galaxy A5 Ultra/g' "$PROP"
+            grep -q "Samsung Galaxy A5 Ultra" "$PROP" || cat << 'PROPEOF' >> "$PROP"
+
+          # Samsung Galaxy A5 Ultra Adaptive Flagship System Unlock
+          ro.boot.warranty_bit=0
+          ro.warranty_bit=0
+          debug.sf.hw=1
+          debug.egl.hw=1
