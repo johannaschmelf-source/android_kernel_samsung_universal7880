@@ -46,8 +46,9 @@ jobs:
             sed -i 's/if (ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/if (i >= 1 \&\& ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/g' "$CPU_CAL"
           fi
 
-          # 4. GPU Limit-Break: 1248 MHz & 1196 MHz freischalten + sparsamer 343 MHz Leerlauf
-          sed -i 's/{1138, 950000, 0, 98, 100, 1, 0, 1539000, 400000, 1482000, CPU_MAX},/{1248, 1025000, 0, 98, 100, 1, 0, 1794000, 400000, 1482000, CPU_MAX},\n\t{1196, 990000, 0, 98, 100, 1, 0, 1794000, 400000, 1482000, CPU_MAX},\n\t{1138, 950000, 0, 98, 100, 1, 0, 1794000, 400000, 1482000, CPU_MAX},/g' "$GPU_FILE"
+          # 4. GPU Limit-Break (sauberes 1:1 Ersetzen ohne Steuerzeichen): 1248 MHz & 1196 MHz + 1794 MHz RAM
+          sed -i 's/{1138, 950000, 0, 98, 100, 1, 0, 1539000/{1248, 1025000, 0, 98, 100, 1, 0, 1794000/g' "$GPU_FILE"
+          sed -i 's/{1086, 925000, 0, 98, 100, 1, 0, 1539000/{1196, 990000, 0, 98, 100, 1, 0, 1794000/g' "$GPU_FILE"
           sed -i 's/{GPU_MAX_CLOCK, 1138}/{GPU_MAX_CLOCK, 1196}/g' "$GPU_FILE"
           sed -i 's/{GPU_MAX_CLOCK_LIMIT, 1138}/{GPU_MAX_CLOCK_LIMIT, 1248}/g' "$GPU_FILE"
           sed -i 's/{GPU_MAX_VOLTAGE, [0-9]*}/{GPU_MAX_VOLTAGE, 1100000}/g' "$GPU_FILE"
@@ -83,8 +84,6 @@ jobs:
         run: |
           chmod +x build_rise.sh
           printf "y\n7\na5\nn\nn\n" | ./build_rise.sh
-          echo "=== Suche erzeugte Dateien ==="
-          find . -name "*.img" -o -name "Image"
 
       - name: All-In-One TWRP Flash-ZIP (Bootlogo + 4K Cam + Stereo + 3GB ZRAM + Adaptive Tune) bauen
         run: |
@@ -93,8 +92,8 @@ jobs:
           BOOT_IMG=$(find . -name "*boot*.img" | head -n 1)
           echo "Gefundenes Boot-Image: $BOOT_IMG"
           if [ -z "$BOOT_IMG" ]; then
-            echo "FEHLER: Kein boot.img erzeugt! Zeige Build-Log:"
-            cat rise/build.log 2>/dev/null || true
+            echo "FEHLER: Kein boot.img erzeugt! Zeige echte Compiler-Fehler:"
+            grep -iE "error:|undefined reference" rise/build.log 2>/dev/null || tail -n 80 rise/build.log 2>/dev/null || true
             exit 1
           fi
           cp "$BOOT_IMG" ultra_zip/boot.img
