@@ -54,7 +54,7 @@ jobs:
           cp "$GITHUB_WORKSPACE/arch/arm64/boot/Image" "$AIK_DIR/split_img/boot.img-zImage"
           [ -n "$DTB_FILE" ] && cp "$DTB_FILE" "$AIK_DIR/split_img/boot.img-dtb"
           (cd "$AIK_DIR" && chmod +x repackimg.sh && ./repackimg.sh) || true
-          NEW_BOOT=$(find "$AIK_DIR" -name "*image-new*" -o -name "*unsigned-new*" | head -n 1)
+          NEW_BOOT=$(find "$GITHUB_WORKSPACE/rise" -name "*image-new*" -o -name "*unsigned-new*" | head -n 1)
           cp "$NEW_BOOT" "$GITHUB_WORKSPACE/ultra_zip/boot.img"
           printf "SEANDROIDENFORCE" >> "$GITHUB_WORKSPACE/ultra_zip/boot.img"
           cp "$GITHUB_WORKSPACE/ultra_zip/boot.img" "$GITHUB_WORKSPACE/output/boot_Samsung_Galaxy_A5_Ultra_OneUI10.img"
