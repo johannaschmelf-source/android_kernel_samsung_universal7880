@@ -18,7 +18,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc bison build-essential ccache curl flex git gnupg gperf imagemagick liblz4-tool libncurses5 libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip unzip zlib1g-dev python2 python3-pil gcc-aarch64-linux-gnu
 
-      - name: Samsung Galaxy A5 Ultra Apex Hardware & Driver Overhaul
+      - name: Samsung Galaxy A5 Ultra Ultimate Hardware & Driver Overhaul
         run: |
           set -e
           DTS_FILE=$(find arch/arm64/boot/dts -name "exynos7880.dtsi" | head -n 1)
@@ -91,14 +91,7 @@ jobs:
           DEFNAME=$(basename $(find arch/arm64/configs -name "*a5y17lte*" | head -n 1))
           echo "Kompiliere mit Defconfig: $DEFNAME"
           make "$DEFNAME"
-          if ! make -j$(nproc) KCFLAGS="-Wno-error" Image dtbs; then
-            echo "=== ZEIGE GENAUEN COMPILER-FEHLER ==="
-            make -j1 KCFLAGS="-Wno-error" Image dtbs
-          fi
-
-          mkdir -p "$GITHUB_WORKSPACE/output"
-          DTB_FILE=$(find arch/arm64/boot/dts -name "*a5y17lte*.dtb" | head -n 1)
-          echo "Gefundenes Image: arch/arm64/boot/Image | DTB: $DTB_FILE"
+          make -j$(nproc) KCFLAGS="-Wno-error" Image dtbs
           test -f arch/arm64/boot/Image
 
       - name: All-In-One TWRP Flash-ZIP bauen & direkt als Release veröffentlichen
@@ -106,15 +99,29 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
-          git clone --depth=1 https://github.com "$GITHUB_WORKSPACE/ak3"
-          rm -rf "$GITHUB_WORKSPACE/ak3/.git"
-          cp arch/arm64/boot/Image "$GITHUB_WORKSPACE/ak3/Image"
-          DTB_FILE=$(find arch/arm64/boot/dts -name "*a5y17lte*.dtb" | head -n 1)
-          [ -f "$DTB_FILE" ] && cp "$DTB_FILE" "$GITHUB_WORKSPACE/ak3/dtb"
+          mkdir -p "$GITHUB_WORKSPACE/output"
+          mkdir -p "$GITHUB_WORKSPACE/ultra_zip/META-INF/com/google/android"
 
-          sed -i 's/do.devicecheck=1/do.devicecheck=0/g' "$GITHUB_WORKSPACE/ak3/anykernel.sh"
-          sed -i 's|block=/dev/block/platform/omap/omap_hsmmc.0/by-name/boot;|block=/dev/block/platform/13540000.dwmmc0/by-name/BOOT;|g' "$GITHUB_WORKSPACE/ak3/anykernel.sh"
-          sed -i 's/is_slot_device=0;/is_slot_device=0;\nramdisk_compression=auto;/g' "$GITHUB_WORKSPACE/ak3/anykernel.sh"
+          DTB_FILE=$(find arch/arm64/boot/dts -name "*a5y17lte*.dtb" | head -n 1)
+          RAMDISK=$(find . -name "*ramdisk*oneui*10*.gz" -o -name "*ramdisk*10*.cpio.gz" -o -name "*ramdisk*.gz" | head -n 1)
+          MKBOOT=$(find . -name "mkbootimg" -type f | head -n 1)
+          echo "Image: arch/arm64/boot/Image | DTB: $DTB_FILE | Ramdisk: $RAMDISK | mkbootimg: $MKBOOT"
+
+          if [ -n "$MKBOOT" ] && [ -n "$RAMDISK" ]; then
+            chmod +x "$MKBOOT"
+            "$MKBOOT" --kernel arch/arm64/boot/Image --ramdisk "$RAMDISK" --dt "$DTB_FILE" --base 0x10000000 --pagesize 2048 --cmdline "" -o "$GITHUB_WORKSPACE/ultra_zip/boot.img"
+          else
+            python3 -c '
+          import struct
+          k = open("arch/arm64/boot/Image", "rb").read()
+          d = open("'"$DTB_FILE"'", "rb").read() if "'"$DTB_FILE"'" else b""
+          r = open("'"$RAMDISK"'", "rb").read() if "'"$RAMDISK"'" else b""
+          def pad(b): return b + b"\x00" * ((2048 - len(b) % 2048) % 2048)
+          hdr = struct.pack("<8sIIIIIIIIII16s512s", b"ANDROID!", len(k), 0x10008000, len(r), 0x11000000, 0, 0x10f00000, 0x10000100, 2048, len(d), 0, b"A5Ultra", b"")
+          open("ultra_zip/boot.img", "wb").write(pad(hdr) + pad(k) + pad(r) + pad(d))
+          '
+          fi
+          cp "$GITHUB_WORKSPACE/ultra_zip/boot.img" "$GITHUB_WORKSPACE/output/boot_Samsung_Galaxy_A5_Ultra.img"
 
           python3 -c '
           from PIL import Image, ImageDraw
@@ -124,8 +131,6 @@ jobs:
           d.text((340, 860), "GALAXY A5 ULTRA", fill=(0, 168, 255))
           d.text((250, 950), "80Hz AMOLED  |  2054MHz CPU  |  1248MHz GPU", fill=(180, 180, 180))
           d.text((280, 1650), "4K 80Mbit Cam  |  Dolby Stereo  |  Apex Ultra", fill=(110, 110, 110))
-          img.save("ak3/logo.jpg", quality=92)
+          img.save("ultra_zip/logo.jpg", quality=92)
           '
-
-          printf '#!/system/bin/sh\nsleep 20\nsetenforce 0 2>/dev/null\nstop diagexe 2>/dev/null\nstop ddexe 2>/dev/null\nfor cpu in /sys/devices/system/cpu/cpu[0-7]/cpufreq; do\n  [ -d "$cpu" ] && echo 344000 > "$cpu/scaling_min_freq" 2>/dev/null && echo 2054000 > "$cpu/scaling_max_freq" 2>/dev/null\ndone\nfor c in /sys/devices/system/cpu/cpu[0-7]/online; do\n  echo 1 > "$c" 2>/dev/null\ndone\nfor gov in /sys/devices/system/cpu/cpu*/cpufreq/interactive; do\n  if [ -d "$gov" ]; then\n    echo 45 > "$gov/go_hispeed_load" 2>/dev/null\n    echo 2054000 > "$gov/hispeed_freq" 2>/dev/null\n    echo 0 > "$gov/above_hispeed_delay" 2>/dev/null\n    echo 10000 > "$gov/timer_rate" 2>/dev/null\n    echo 40000 > "$gov/min_sample_time" 2>/dev/null\n  fi\ndone\nswapoff /dev/block/zram0 2>/dev/null\necho 1 > /sys/block/zram0/reset 2>/dev/null\necho lz4 > /sys/block/zram0/comp_algorithm 2>/dev/null\necho 3221225472 > /sys/block/zram0/disksize 2>/dev/null\nmkswap /dev/block/zram0 2>/dev/null\nswapon /dev/block/zram0 2>/dev/null\necho 100 > /proc/sys/vm/swappiness 2>/dev/null\necho 50 > /proc/sys/vm/vfs_cache_pressure 2>/dev/null\necho "1536,2048,4096,8192,16384,24576" > /sys/module/lowmemorykiller/parameters/minfree 2>/dev/null\nfor q in /sys/block/mmcblk*/queue; do\n  echo fiops > "$q/scheduler" 2>/dev/null || echo deadline > "$q/scheduler" 2>/dev/null\n  echo 2048 > "$q/read_ahead_kb" 2>/dev/null\n  echo 256 > "$q/nr_requests" 2>/dev/null\n  echo 0 > "$q/iostats" 2>/dev/null\ndone\nfstrim -v /data 2>/dev/null\nfstrim -v /cache 2>/dev/null\nsysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null\nsysctl -w net.ipv4.tcp_fastopen=3 2>/dev/null\nsysctl -w net.core.rmem_max=8388608 2>/dev/null\nsysctl -w net.core.wmem_max=8388608 2>/dev/null\nsettings put global window_animation_scale 0.5 2>/dev/null\nsettings put global transition_animation_scale 0.5 2>/dev/null\nsettings put global animator_duration_scale 0.5 2>/dev/null\nsettings put global force_resizable_activities 1 2>/dev/null\nsettings put global enable_freeform_support 1 2>/dev/null\ncmd package bg-dexopt-job 2>/dev/null &\n' > "$GITHUB_WORKSPACE/ak3/ultra_autotune.sh"
 
