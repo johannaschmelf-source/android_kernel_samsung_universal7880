@@ -16,7 +16,7 @@ jobs:
       - name: Build-Pakete & ARM64 Toolchain installieren
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex git gnupg gperf imagemagick liblz4-tool libncurses5 libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip unzip zlib1g-dev python2 gcc-aarch64-linux-gnu
+          sudo apt-get install -y bc bison build-essential ccache curl flex git gnupg gperf imagemagick fonts-dejavu-core liblz4-tool libncurses5 libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip unzip zlib1g-dev python2 gcc-aarch64-linux-gnu
 
       - name: Samsung Galaxy A5 Ultra Complete Silicon & Driver Overhaul
         run: |
@@ -29,18 +29,15 @@ jobs:
           echo "Gefundene Defconfig: $DEFCONFIG"
           test -f "$DTS_FILE" && test -f "$GPU_FILE" && test -f "$DEFCONFIG"
 
-          # 1. Offizielle Kernel-Identitaet, Permissive-Support & Hardware-LZ4/CRC32C
           sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-Samsung-Galaxy-A5-Ultra"/g' "$DEFCONFIG"
           grep -q "CONFIG_LOCALVERSION=" "$DEFCONFIG" || echo 'CONFIG_LOCALVERSION="-Samsung-Galaxy-A5-Ultra"' >> "$DEFCONFIG"
           echo "CONFIG_SECURITY_SELINUX_DEVELOP=y" >> "$DEFCONFIG"
           echo "CONFIG_CRYPTO_CRC32C=y" >> "$DEFCONFIG"
           echo "CONFIG_CRYPTO_LZ4=y" >> "$DEFCONFIG"
 
-          # 2. Display-Treiber: 80Hz Super-AMOLED & High Brightness Mode (HBM)
           find arch/arm64/boot/dts -type f -name "*.dts*" -exec sed -i 's/refresh = <60>;/refresh = <80>;/g; s/fps = <60>;/fps = <80>;/g; s/panel-refresh-rate = <60>;/panel-refresh-rate = <80>;/g' {} + 2>/dev/null || true
           find drivers/video/fbdev/exynos -type f -name "*.c" -exec sed -i 's/hbm_mode = 0/hbm_mode = 1/g' {} + 2>/dev/null || true
 
-          # 3. CPU-Silizium-Limit: 2158 MHz (Cluster 0) & 2054 MHz (Cluster 1) + 1300mV PLL
           sed -i 's/cl0_boot_max_qos = <2002000>;/cl0_boot_max_qos = <1794000>;/g' "$DTS_FILE"
           sed -i 's/cl1_boot_max_qos = <2002000>;/cl1_boot_max_qos = <1794000>;/g' "$DTS_FILE"
           sed -i 's/0  2002000  1200000  1014000/0  2158000  1300000  1014000/g' "$DTS_FILE"
@@ -50,31 +47,25 @@ jobs:
             sed -i 's/if (ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/if (i >= 1 \&\& ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/g' "$CPU_CAL"
           fi
 
-          # 4. Mali-T830 GPU-Overdrive: 1300 MHz & 1248 MHz + 1794 MHz RAM + 1150mV + Zero-Lag-DVFS
           sed -i 's/{1138, 950000, 0, 98, 100, 1, 0, 1539000/{1300, 1060000, 0, 70, 100, 1, 0, 1794000/g' "$GPU_FILE"
           sed -i 's/{1086, 925000, 0, 98, 100, 1, 0, 1539000/{1248, 1020000, 0, 65, 100, 1, 0, 1794000/g' "$GPU_FILE"
           sed -i 's/{GPU_MAX_CLOCK, 1138}/{GPU_MAX_CLOCK, 1248}/g' "$GPU_FILE"
           sed -i 's/{GPU_MAX_CLOCK_LIMIT, 1138}/{GPU_MAX_CLOCK_LIMIT, 1300}/g' "$GPU_FILE"
           sed -i 's/{GPU_MAX_VOLTAGE, [0-9]*}/{GPU_MAX_VOLTAGE, 1150000}/g' "$GPU_FILE"
 
-          # 5. LPDDR4 RAM-Bus (MIF) auf 1794 MHz
           sed -i 's/freq_info = <1539000 450000 450000 1539000 450000 1539000>;/freq_info = <1539000 450000 450000 1794000 450000 1794000>;/g' "$DTS_FILE"
 
-          # 6. Hardware-Knoepfe (GPIO-Keys), Touchscreen, Input-Booster & Fingerprint-Treiber beschleunigen
           find arch/arm64/boot/dts -type f -name "*.dts*" -exec sed -i 's/ibi,cpu_freq = <[^>]*>/ibi,cpu_freq = <2158000 1794000 0>/g; s/ibi,mif_freq = <[^>]*>/ibi,mif_freq = <1794000 1539000 0>/g; s/debounce-interval = <[0-9]*>/debounce-interval = <2>/g' {} + 2>/dev/null || true
           find drivers/fingerprint -type f -name "*.c" -exec sed -i 's/msleep(20)/msleep(3)/g; s/msleep(10)/msleep(2)/g' {} + 2>/dev/null || true
           find drivers/input/touchscreen -type f -name "*.c" -exec sed -i 's/msleep(20)/msleep(3)/g; s/msleep(15)/msleep(2)/g; s/msleep(10)/msleep(2)/g' {} + 2>/dev/null || true
 
-          # 7. Thermal-Treiber auf 98 Grad entfesseln
           sed -i 's/{TEMP_THROTTLING1, [0-9]*}/{TEMP_THROTTLING1, 98}/g' "$GPU_FILE"
           sed -i 's/{TEMP_THROTTLING2, [0-9]*}/{TEMP_THROTTLING2, 100}/g' "$GPU_FILE"
           sed -i 's/{TEMP_THROTTLING3, [0-9]*}/{TEMP_THROTTLING3, 102}/g' "$GPU_FILE"
           sed -i 's/{TEMP_THROTTLING4, [0-9]*}/{TEMP_THROTTLING4, 104}/g' "$GPU_FILE"
 
-          # 8. Lade-Treiber (S2MU004) auf 2600 mA Fast-Charge & 1200 mA USB entsperren
           find drivers/battery* -type f -name "*.c" -exec sed -i 's/\<1650\>/2600/g; s/\<1800\>/2600/g; s/\<475\>/1200/g' {} + 2>/dev/null || true
 
-          # 9. 1000Hz Ultra-Timer, eMMC No-CRC Speicher-Treiber & Google BBR Netzwerk-Stack
           echo "CONFIG_HZ_1000=y" >> "$DEFCONFIG"
           echo "# CONFIG_HZ_250 is not set" >> "$DEFCONFIG"
           echo "# CONFIG_MMC_SPI_CRC_ON is not set" >> "$DEFCONFIG"
@@ -122,5 +113,7 @@ jobs:
           fi
           cp "$GITHUB_WORKSPACE/ultra_zip/boot.img" "$GITHUB_WORKSPACE/output/boot_Samsung_Galaxy_A5_Ultra.img"
 
-          convert -size 1080x1920 xc:black -gravity center -fill white -pointsize 58 -annotate +0-140 "SAMSUNG" -fill "#00A8FF" -pointsize 74 -annotate +0-40 "GALAXY A5 ULTRA" -fill "#B0B0B0" -pointsize 28 -annotate +0+60 "80Hz AMOLED  |  2158MHz CPU  |  1300MHz GPU" -fill "#707070" -pointsize 24 -annotate +0+680 "4K 80Mbit Cam  |  Dolby Atmos  |  1794MHz RAM" -quality 92 "$GITHUB_WORKSPACE/ultra_zip/logo.jpg" || true
+          convert -size 1080x1920 xc:black -font DejaVu-Sans-Bold -gravity center -fill white -pointsize 58 -annotate +0-140 "SAMSUNG" -fill "#00A8FF" -pointsize 74 -annotate +0-40 "GALAXY A5 ULTRA" -fill "#B0B0B0" -pointsize 28 -annotate +0+60 "80Hz AMOLED  |  2158MHz CPU  |  1300MHz GPU" -fill "#707070" -pointsize 24 -annotate +0+680 "4K 80Mbit Cam  |  Dolby Atmos  |  1794MHz RAM" -quality 92 "$GITHUB_WORKSPACE/ultra_zip/logo.jpg" || true
+
+          printf '#!/system/bin/sh\nsleep 20\nsetenforce 0 2>/dev/null\nstop diagexe 2>/dev/null\nstop ddexe 2>/dev/null\nfor cpu in /sys/devices/system/cpu/cpu[0-7]/cpufreq; do\n  [ -d "$cpu" ] && echo 344000 > "$cpu/scaling_min_freq" 2>/dev/null && echo 2158000 > "$cpu/scaling_max_freq" 2>/dev/null\ndone\nfor c in /sys/devices/system/cpu/cpu[0-7]/online; do\n  echo 1 > "$c" 2>/dev/null\ndone\nfor gov in /sys/devices/system/cpu/cpu*/cpufreq/interactive; do\n  if [ -d "$gov" ]; then\n    echo 40 > "$gov/go_hispeed_load" 2>/dev/null\n    echo 2158000 > "$gov/hispeed_freq" 2>/dev/null\n    echo 0 > "$gov/above_hispeed_delay" 2>/dev/null\n    echo 10000 > "$gov/timer_rate" 2>/dev/null\n    echo 40000 > "$gov/min_sample_time" 2>/dev/null\n  fi\ndone\nswapoff /dev/block/zram0 2>/dev/null\necho 1 > /sys/block/zram0/reset 2>/dev/null\necho lz4 > /sys/block/zram0/comp_algorithm 2>/dev/null\necho 3221225472 > /sys/block/zram0/disksize 2>/dev/null\nmkswap /dev/block/zram0 2>/dev/null\nswapon /dev/block/zram0 2>/dev/null\necho 100 > /proc/sys/vm/swappiness 2>/dev/null\necho 50 > /proc/sys/vm/vfs_cache_pressure 2>/dev/null\necho 40 > /proc/sys/vm/dirty_ratio 2>/dev/null\necho "1536,2048,4096,8192,16384,24576" > /sys/module/lowmemorykiller/parameters/minfree 2>/dev/null\nfor q in /sys/block/mmcblk*/queue; do\n  echo fiops > "$q/scheduler" 2>/dev/null || echo deadline > "$q/scheduler" 2>/dev/null\n  echo 2048 > "$q/read_ahead_kb" 2>/dev/null\n  echo 256 > "$q/nr_requests" 2>/dev/null\n  echo 0 > "$q/iostats" 2>/dev/null\ndone\nfstrim -v /data 2>/dev/null\nfstrim -v /cache 2>/dev/null\nsysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null\nsysctl -w net.ipv4.tcp_fastopen=3 2>/dev/null\nsysctl -w net.core.rmem_max=8388608 2>/dev/null\nsysctl -w net.core.wmem_max=8388608 2>/dev/null\nsettings put global window_animation_scale 0.5 2>/dev/null\nsettings put global transition_animation_scale 0.5 2>/dev/null\nsettings put global animator_duration_scale 0.5 2>/dev/null\nsettings put global force_resizable_activities 1 2>/dev/null\nsettings put global enable_freeform_support 1 2>/dev/null\ncmd package bg-dexopt-job 2>/dev/null &\n' > "$GITHUB_WORKSPACE/ultra_zip/ultra_autotune.sh"
 
