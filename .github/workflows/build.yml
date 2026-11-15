@@ -102,25 +102,22 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/output"
           mkdir -p "$GITHUB_WORKSPACE/ultra_zip/META-INF/com/google/android"
 
-          DTB_FILE=$(find arch/arm64/boot/dts -name "*a5y17lte*.dtb" | head -n 1)
-          RAMDISK=$(find . -name "*ramdisk*oneui*10*.gz" -o -name "*ramdisk*10*.cpio.gz" -o -name "*ramdisk*.gz" | head -n 1)
-          MKBOOT=$(find . -name "mkbootimg" -type f | head -n 1)
-          echo "Image: arch/arm64/boot/Image | DTB: $DTB_FILE | Ramdisk: $RAMDISK | mkbootimg: $MKBOOT"
+          DTB_FILE=$(find arch/arm64/boot -name "*.dtb" | head -n 1)
+          RAMDISK=$(find rise -name "*ramdisk*" -type f | head -n 1)
+          echo "Image: arch/arm64/boot/Image | DTB: $DTB_FILE | Ramdisk: $RAMDISK"
 
-          if [ -n "$MKBOOT" ] && [ -n "$RAMDISK" ]; then
-            chmod +x "$MKBOOT"
-            "$MKBOOT" --kernel arch/arm64/boot/Image --ramdisk "$RAMDISK" --dt "$DTB_FILE" --base 0x10000000 --pagesize 2048 --cmdline "" -o "$GITHUB_WORKSPACE/ultra_zip/boot.img"
-          else
-            python3 -c '
-          import struct
+          python3 -c '
+          import os, struct
           k = open("arch/arm64/boot/Image", "rb").read()
-          d = open("'"$DTB_FILE"'", "rb").read() if "'"$DTB_FILE"'" else b""
-          r = open("'"$RAMDISK"'", "rb").read() if "'"$RAMDISK"'" else b""
+          dtb_path = os.environ.get("DTB_FILE", "")
+          ram_path = os.environ.get("RAMDISK", "")
+          d = open(dtb_path, "rb").read() if dtb_path and os.path.isfile(dtb_path) else b""
+          r = open(ram_path, "rb").read() if ram_path and os.path.isfile(ram_path) else b""
           def pad(b): return b + b"\x00" * ((2048 - len(b) % 2048) % 2048)
           hdr = struct.pack("<8sIIIIIIIIII16s512s", b"ANDROID!", len(k), 0x10008000, len(r), 0x11000000, 0, 0x10f00000, 0x10000100, 2048, len(d), 0, b"A5Ultra", b"")
           open("ultra_zip/boot.img", "wb").write(pad(hdr) + pad(k) + pad(r) + pad(d))
-          '
-          fi
+          ' DTB_FILE="$DTB_FILE" RAMDISK="$RAMDISK"
+
           cp "$GITHUB_WORKSPACE/ultra_zip/boot.img" "$GITHUB_WORKSPACE/output/boot_Samsung_Galaxy_A5_Ultra.img"
 
           python3 -c '
