@@ -11,13 +11,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Build-Pakete & Linaro GCC 4.9 Toolchain installieren
+      - name: Build-Pakete & GCC 4.9 Toolchain installieren
         run: |
           sudo apt-get update
           sudo apt-get install -y bc bison build-essential ccache curl flex git gnupg gperf liblz4-tool libncurses5-dev libssl-dev libxml2-utils lzop pngcrush rsync schedtool xsltproc zip unzip zlib1g-dev python2 wget xz-utils
           mkdir -p "$GITHUB_WORKSPACE/toolchain"
-          wget -q https://linaro.org -O /tmp/gcc49.tar.xz
-          tar -xf /tmp/gcc49.tar.xz -C "$GITHUB_WORKSPACE/toolchain"
+          git clone --depth=1 https://github.com -b master "$GITHUB_WORKSPACE/toolchain/gcc49" || git clone --depth=1 https://github.com "$GITHUB_WORKSPACE/toolchain/gcc49"
       - name: Kernel anpassen & mit GCC 4.9 bauen
         run: |
           set -e
@@ -30,7 +29,7 @@ jobs:
           [ -f "$CPU_CAL" ] && sed -i 's/if (ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/if (i >= 1 \&\& ptr->freq_table\[i\].frequency != (unsigned int)ptr_temp_table\[i\].rate)/g' "$CPU_CAL"
           sed -i 's/{1138, 950000, 0, 98, 100, 1, 0, 1539000/{1300, 1075000, 0, 55, 100, 1, 0, 1794000/g; s/{GPU_MAX_CLOCK, 1138}/{GPU_MAX_CLOCK, 950}/g; s/{GPU_MAX_CLOCK_LIMIT, 1138}/{GPU_MAX_CLOCK_LIMIT, 1300}/g; s/{GPU_MAX_VOLTAGE, [0-9]*}/{GPU_MAX_VOLTAGE, 1150000}/g' "$GPU_FILE"
           find drivers/battery* -type f -name "*.c" -exec sed -i 's/\<1650\>/2400/g; s/\<1800\>/2400/g; s/\<475\>/1100/g' {} + 2>/dev/null || true
-          TC_BIN=$(find "$GITHUB_WORKSPACE/toolchain" -name "aarch64-linux-gnu-gcc" | head -n 1)
+          TC_BIN=$(find "$GITHUB_WORKSPACE/toolchain/gcc49/bin" -name "*-gcc" | head -n 1)
           export CROSS_COMPILE="${TC_BIN%gcc}"
           export ARCH=arm64
           export SUBARCH=arm64
