@@ -82,15 +82,21 @@ jobs:
       - name: Kernel bauen (Samsung Galaxy A5 Ultra)
         run: |
           chmod +x build_rise.sh
-          printf "y\n7\na5\nn\n" | ./build_rise.sh
+          printf "y\n7\na5\nn\nn\n" | ./build_rise.sh
+          echo "=== Suche erzeugte Dateien ==="
+          find . -name "*.img" -o -name "Image"
 
       - name: All-In-One TWRP Flash-ZIP (Bootlogo + 4K Cam + Stereo + 3GB ZRAM + Adaptive Tune) bauen
         run: |
           set -e
           mkdir -p ultra_zip/META-INF/com/google/android
-          BOOT_IMG=$(find . -maxdepth 3 -name "*boot*.img" | head -n 1)
+          BOOT_IMG=$(find . -name "*boot*.img" | head -n 1)
           echo "Gefundenes Boot-Image: $BOOT_IMG"
-          test -f "$BOOT_IMG"
+          if [ -z "$BOOT_IMG" ]; then
+            echo "FEHLER: Kein boot.img erzeugt! Zeige Build-Log:"
+            cat rise/build.log 2>/dev/null || true
+            exit 1
+          fi
           cp "$BOOT_IMG" ultra_zip/boot.img
 
           # Eigenes Full-HD Bootlogo (logo.jpg) sicher per Python erzeugen
@@ -166,6 +172,3 @@ jobs:
           if [ -f "$PROP" ]; then
             sed -i 's/ro.product.model=.*/ro.product.model=Galaxy A5 Ultra/g' "$PROP"
             sed -i 's/ro.product.system.model=.*/ro.product.system.model=Galaxy A5 Ultra/g' "$PROP"
-            sed -i 's/ro.product.vendor.model=.*/ro.product.vendor.model=Galaxy A5 Ultra/g' "$PROP"
-            grep -q "Samsung Galaxy A5 Ultra" "$PROP" || cat << 'PROPEOF' >> "$PROP"
-
