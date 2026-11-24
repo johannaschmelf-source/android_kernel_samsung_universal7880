@@ -71,6 +71,8 @@ static struct oc_domain oc_domains[] = {
 	{ "dvfs_cpucl0", CONFIG_ECT_OC_CPU_KHZ, CONFIG_ECT_OC_CPU_UV_DELTA, CONFIG_ECT_OC_CPU_UV_MAX, true, CONFIG_ECT_OC_TOP_EXTRA_UV },
 	{ "dvfs_cpucl1", CONFIG_ECT_OC_CPU_KHZ, CONFIG_ECT_OC_CPU_UV_DELTA, CONFIG_ECT_OC_CPU_UV_MAX, true, CONFIG_ECT_OC_TOP_EXTRA_UV },
 	{ "dvfs_g3d",    CONFIG_ECT_OC_GPU_KHZ, CONFIG_ECT_OC_GPU_UV_DELTA, CONFIG_ECT_OC_GPU_UV_MAX, false, CONFIG_ECT_OC_GPU_TOP_EXTRA_UV },
+	/* v24: RAM - unlock Samsung MIF levels up to MIF_KHZ (e.g. 1716), never replace L0 */
+	{ "dvfs_mif",    CONFIG_ECT_OC_MIF_KHZ, CONFIG_ECT_OC_MIF_UV_DELTA, CONFIG_ECT_OC_MIF_UV_MAX, false, 0 },
 };
 
 static unsigned int add_uv(unsigned int v, unsigned int delta, unsigned int cap)
