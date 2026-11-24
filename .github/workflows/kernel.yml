@@ -1,0 +1,47 @@
+name: Build A5 Ultra Kernel
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # v23-cpu2054: CPU 2054 @ ~1,28 V, GPU 1352 @ 1,1125 V (Undervolt fest eingebaut)
+          - name: v23-cpu2054
+            env: "CPU_KHZ=2054000 TOP_EXTRA_UV=75000 GPU_TOP_EXTRA_UV=50000"
+          # v23-gpu1400: CPU 2002, GPU 1400 @ ~1,21 V (bis 1,25 V)
+          - name: v23-gpu1400
+            env: "GPU_KHZ=1400000 GPU_UV_MAX=1250000 GPU_TOP_EXTRA_UV=150000"
+          # v23-uv: CPU 2002 / GPU 1352 wie v21, nur GPU-Undervolt 1,1125 V fest
+          - name: v23-uv
+            env: "GPU_TOP_EXTRA_UV=50000"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Pakete
+        run: sudo apt-get update && sudo apt-get install -y bc bison flex libssl-dev python2 device-tree-compiler cpio
+      - name: Toolchain
+        run: git clone --depth 1 -b lineage-19.0 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 $HOME/tc
+      - name: Bauen
+        run: |
+          set -e
+          export ${{ matrix.env }}
+          export NAME=${{ matrix.name }}
+          bash scripts/a5ultra/build.sh $HOME/tc/bin/aarch64-linux-android- 2>&1 | tail -200
+          test -f arch/arm64/boot/Image
+          mkdir out
+          cp arch/arm64/boot/Image out/Image_${{ matrix.name }}
+          cp arch/arm64/boot/dtb.img out/dtb_${{ matrix.name }}.img
+          grep ECT_OC .config > out/config_${{ matrix.name }}.txt
+          ls -la out
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view a5-ultra-v23 >/dev/null 2>&1 || gh release create a5-ultra-v23 --target "$GITHUB_SHA" --title "A5 Ultra v23 (Test)" --notes "Kernel-Image + dtb, mit swapkernel.py in boot_v21_backup.img einsetzen" || true
+          gh release upload a5-ultra-v23 out/* --clobber
