@@ -412,7 +412,7 @@
 			     11 208000 900000>;
 
 		/* initial_freq, default_qos, suspend_freq, cal_qos_max, min_freq, max_freq */
-		freq_info = <1539000 450000 450000 1539000 450000 1539000>;
+		freq_info = <1539000 450000 450000 1716000 450000 1716000>;
 
 		/* PM QoS */
 		boot_qos_timeout = <40>;
