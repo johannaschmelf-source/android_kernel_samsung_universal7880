@@ -1,6 +1,7 @@
 name: Build A5 Ultra Kernel
 on:
   workflow_dispatch:
+  push: {branches: [claude/upbeat-brahmagupta-u4v5tf], paths: [.github/workflows/kernel.yml, scripts/a5ultra/**, arch/arm64/configs/**, drivers/soc/samsung/**]}
 permissions:
   contents: write
 jobs:
