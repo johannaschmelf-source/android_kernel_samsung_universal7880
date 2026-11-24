@@ -54,8 +54,8 @@
 #endif
 
 #ifdef CONFIG_SOC_EXYNOS7880
-#define CL0_MAX_VOLT		1200000
-#define CL1_MAX_VOLT		1200000
+#define CL0_MAX_VOLT		1300000	/* A5 Ultra: OC levels need up to 1.3 V */
+#define CL1_MAX_VOLT		1300000	/* A5 Ultra */
 #define CL0_MIN_VOLT		550000
 #define CL1_MIN_VOLT		550000
 #define CL_MAX_VOLT(cl)		(cl == CL_ZERO ? CL0_MAX_VOLT : CL1_MAX_VOLT)
@@ -514,6 +514,14 @@ static unsigned int exynos_verify_pm_qos_limit(struct cpufreq_policy *policy,
 
 	target_freq = min(g_clamp_cpufreqs[cur], target_freq); /* add IPA clamp */
 
+#ifdef CONFIG_ECT_OC_BOOT_CAP
+	/*
+	 * A5 Ultra: PM-QoS boosts (boot completed, unlock, app launch) must not
+	 * bypass scaling_max_freq, otherwise the locked OC level is used anyway.
+	 */
+	target_freq = min(policy->max, target_freq);
+#endif
+
 	return target_freq;
 }
 
@@ -651,6 +659,32 @@ static int exynos_cpufreq_init(struct cpufreq_policy *policy)
 	policy->cur = policy->min = policy->max = exynos_getspeed(policy->cpu);
 
 	cpufreq_table_validate_and_show(policy, exynos_info[cur]->freq_table);
+
+#ifdef CONFIG_ECT_OC_BOOT_CAP
+	/*
+	 * A5 Ultra: boot at the stock top level. The ECT-OC level is only
+	 * used after userspace raises scaling_max_freq (crash-safe tuning).
+	 */
+	{
+		struct cpufreq_frequency_table *t = exynos_info[cur]->freq_table;
+		int top = exynos_info[cur]->max_support_idx;
+
+		/*
+		 * only on the very first init of a cluster: cluster hotplug
+		 * re-runs this, and must not undo the user's scaling_max_freq
+		 */
+		static bool a5u_capped[2];
+
+		if (cur < 2 && !a5u_capped[cur] &&
+		    t[top].frequency == CONFIG_ECT_OC_CPU_KHZ &&
+		    t[top + 1].frequency != CPUFREQ_TABLE_END) {
+			a5u_capped[cur] = true;
+			policy->max = t[top + 1].frequency;
+			pr_info("[ECT-OC] cpu%d: boot max %u, OC %u via scaling_max_freq\n",
+				policy->cpu, policy->max, t[top].frequency);
+		}
+	}
+#endif
 
 	/* set the transition latency value */
 	policy->cpuinfo.transition_latency = 100000;

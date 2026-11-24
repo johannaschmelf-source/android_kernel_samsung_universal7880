@@ -381,4 +381,9 @@ static inline int ect_strcmp(char *src1, char *src2) { return -1; }
 
 #endif
 
+#ifdef CONFIG_ECT_OC
+void ect_oc_apply(void);
+extern bool ect_oc_mif_shifted;
+#endif
+
 #endif

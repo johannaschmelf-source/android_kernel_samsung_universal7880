@@ -89,6 +89,14 @@ int gpu_dvfs_handler_init(struct kbase_device *kbdev)
 
 	gpu_set_target_clk_vol(platform->table[platform->step].clock, false);
 
+#ifdef CONFIG_ECT_OC
+	/* A5 Ultra: boot at stock 1034 MHz, raise via max_clock (HKTweaks) */
+	if (platform->gpu_max_clock > 1034) {
+		platform->user_max_lock_input = 1034;
+		gpu_dvfs_clock_lock(GPU_DVFS_MAX_LOCK, SYSFS_LOCK, 1034);
+	}
+#endif
+
 	GPU_LOG(DVFS_INFO, DUMMY, 0u, 0u, "dvfs handler initialized\n");
 	return 0;
 }

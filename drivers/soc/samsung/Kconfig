@@ -32,6 +32,86 @@ config ECT
 	default n
 	depends on ARCH_EXYNOS
 
+config ECT_OC
+	bool "A5 Ultra: overclock CPU/GPU by patching the ECT top level"
+	default n
+	depends on ECT
+	help
+	  Replaces the second-highest CPU and GPU DVFS level with a new
+	  overclocked top level (PLL, ASV voltage, RCC, margin, minlock and
+	  thermal tables are patched consistently). Unexpected tables are left
+	  untouched. Check "dmesg | grep ECT-OC" after boot.
+
+config ECT_OC_BOOT_CAP
+	bool "Boot with the OC CPU level locked (raise via scaling_max_freq)"
+	depends on ECT_OC
+	default y
+
+config ECT_OC_TOP_EXTRA_UV
+	int "Extra voltage for a replaced top level above Samsung's table (uV)"
+	depends on ECT_OC
+	default 37500
+
+config ECT_OC_GPU_TOP_EXTRA_UV
+	int "Extra voltage for the GPU top level above Samsung's table (uV)"
+	depends on ECT_OC
+	default 37500
+
+config ECT_OC_THERMAL_SHIFT
+	int "Delay CPU/GPU thermal throttling by this many degrees C (0 = stock)"
+	depends on ECT_OC
+	default 0
+
+config ECT_OC_CPU_KHZ
+	int "CPU top frequency in kHz (0 = off)"
+	depends on ECT_OC
+	default 2184000
+
+config ECT_OC_CPU_UV_DELTA
+	int "Extra CPU voltage over the stock top level in uV"
+	depends on ECT_OC
+	default 62500
+
+config ECT_OC_CPU_UV_MAX
+	int "Absolute CPU voltage cap in uV"
+	depends on ECT_OC
+	default 1300000
+
+config ECT_OC_GPU_KHZ
+	int "GPU top frequency in kHz (0 = off)"
+	depends on ECT_OC
+	default 1144000
+
+config ECT_OC_GPU_UV_DELTA
+	int "Extra GPU voltage over the stock top level in uV"
+	depends on ECT_OC
+	default 50000
+
+config ECT_OC_GPU_UV_MAX
+	int "Absolute GPU voltage cap in uV"
+	depends on ECT_OC
+	default 1100000
+
+config ECT_OC_MIF_UNLOCK
+	bool "Unlock all MIF (RAM) levels present in ECT"
+	depends on ECT_OC
+	default y
+
+config ECT_OC_MIF_KHZ
+	int "MIF (RAM) top level in kHz (0 = off, needs timing copy)"
+	depends on ECT_OC
+	default 0
+
+config ECT_OC_MIF_UV_DELTA
+	int "Extra MIF voltage in uV"
+	depends on ECT_OC
+	default 25000
+
+config ECT_OC_MIF_UV_MAX
+	int "Absolute MIF voltage cap in uV"
+	depends on ECT_OC
+	default 1050000
+
 config ECT_DUMP
 	bool "Enable Exynos Characteristic Table File Dump sysfs"
 	default n

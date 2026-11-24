@@ -61,7 +61,7 @@
 #endif
 
 #ifdef CONFIG_SOC_EXYNOS7880
-#define GPU_MAX_VOLT		1100000
+#define GPU_MAX_VOLT		1250000	/* A5 Ultra: OC levels need more than 1.1 V */
 #define GPU_MIN_VOLT		500000
 #define GPU_VOLT_STEP		6250
 #else
@@ -2056,6 +2056,60 @@ static struct kobj_attribute gpu_temp_attribute =
 #endif
 
 #if defined(CONFIG_MALI_DVFS)
+/* A5 Ultra: raise/lower the GPU top level at runtime (crash-safe OC tuning) */
+static ssize_t show_gpu_oc_max(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	struct exynos_context *platform = (struct exynos_context *)pkbdev->platform_context;
+
+	return snprintf(buf, PAGE_SIZE, "%d (limit %d)\n",
+			platform->gpu_max_clock, platform->table[0].clock);
+}
+
+static ssize_t set_gpu_oc_max(struct kobject *kobj, struct kobj_attribute *attr,
+			      const char *buf, size_t count)
+{
+	struct exynos_context *platform = (struct exynos_context *)pkbdev->platform_context;
+	int clock, i, old;
+	bool found = false;
+
+	unsigned long flags;
+
+	if (kstrtoint(buf, 0, &clock))
+		return -EINVAL;
+	/* table[0] is the highest (OC) level */
+	if (clock > platform->table[0].clock)
+		clock = platform->table[0].clock;
+	for (i = 0; i < platform->table_size; i++)
+		if (platform->table[i].clock == clock)
+			found = true;
+	if (!found || clock < platform->gpu_min_clock)
+		return -EINVAL;
+
+	/*
+	 * max and limit must move together: the governor (CL boost, hwcnt)
+	 * looks up gpu_dvfs_get_level(gpu_max_clock_limit), which returns -1
+	 * if the limit is above gpu_max_clock.
+	 */
+	spin_lock_irqsave(&platform->gpu_dvfs_spinlock, flags);
+	old = platform->gpu_max_clock;
+	if (clock > old) {
+		platform->gpu_max_clock = clock;
+		platform->gpu_max_clock_limit = clock;
+	} else {
+		platform->gpu_max_clock_limit = clock;
+		platform->gpu_max_clock = clock;
+		if (platform->step < gpu_dvfs_get_level(clock))
+			platform->step = gpu_dvfs_get_level(clock);
+	}
+	if (platform->max_lock == old)
+		platform->max_lock = clock;
+	spin_unlock_irqrestore(&platform->gpu_dvfs_spinlock, flags);
+	return count;
+}
+
+static struct kobj_attribute gpu_oc_max_attribute =
+	__ATTR(gpu_oc_max, S_IRUGO|S_IWUSR, show_gpu_oc_max, set_gpu_oc_max);
+
 static struct kobj_attribute gpu_max_lock_attribute =
 	__ATTR(gpu_max_clock, S_IRUGO|S_IWUSR, show_kernel_sysfs_max_lock_dvfs, set_kernel_sysfs_max_lock_dvfs);
 
@@ -2087,6 +2141,7 @@ static struct attribute *attrs[] = {
 	&gpu_temp_attribute.attr,
 #endif
 #if defined(CONFIG_MALI_DVFS)
+	&gpu_oc_max_attribute.attr,
 	&gpu_max_lock_attribute.attr,
 	&gpu_min_lock_attribute.attr,
 	&gpu_governor_attribute.attr,

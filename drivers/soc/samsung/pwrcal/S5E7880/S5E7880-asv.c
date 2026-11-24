@@ -902,7 +902,11 @@ static void asv_voltage_init_table(struct asv_table_list **asv_table, struct pwr
 				}
 
 				if (mif_margin != NULL)
-					asv_entry->voltage[k] += mif_margin[j].vendor_margin[margin_idx];
+					asv_entry->voltage[k] += mif_margin[
+#ifdef CONFIG_ECT_OC
+						(ect_oc_mif_shifted && j == 1) ? 0 :
+#endif
+						j].vendor_margin[margin_idx];
 			}
 		}
 	}

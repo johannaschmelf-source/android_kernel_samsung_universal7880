@@ -772,6 +772,16 @@ void dfs_dram_param_init(void)
 		memcpy_toio(&pwrcal_gadfs_phy_mif_table[i], loc, sizeof(dmc_phy_dfs_mif_table));
 		loc += sizeof(dmc_phy_dfs_mif_table);
 	}
+
+#ifdef CONFIG_ECT_OC
+	/* A5 Ultra: new MIF L0 runs with the old top timings, L1 = old top */
+	if (ect_oc_mif_shifted && size->num_of_level >= 2) {
+		pwrcal_gadfs_drex_mif_table[1] = pwrcal_gadfs_drex_mif_table[0];
+		pwrcal_gadfs_vtmon_mif_table[1] = pwrcal_gadfs_vtmon_mif_table[0];
+		pwrcal_gadfs_phy_mif_table[1] = pwrcal_gadfs_phy_mif_table[0];
+		pr_info("[ECT-OC] dvfs_mif: DRAM timing rows shifted\n");
+	}
+#endif
 }
 
 void dfs_mif_level_init(void)

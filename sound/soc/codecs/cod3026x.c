@@ -476,6 +476,124 @@ static int dac_soft_mute_put(struct snd_kcontrol *kcontrol,
  * All the data goes into cod3026x_snd_controls.
  * All path inter-connections goes into cod3026x_dapm_routes
  */
+
+/*
+ * A5 Ultra sound control: adds a user-set boost (1 dB steps) on top of what
+ * Android requests for headphone / speaker / earpiece, clamped to the codec
+ * maximum. /sys/kernel/a5u_sound/{hp_boost,spk_boost,ep_boost}
+ */
+#include <linux/kobject.h>
+#define A5U_HP_MAX	63	/* +6 dB */
+#define A5U_SPK_MAX	9	/* +3 dB */
+#define A5U_EP_MAX	12	/* +12 dB */
+static struct snd_soc_codec *a5u_codec;
+static int a5u_hp_boost, a5u_spk_boost, a5u_ep_boost;
+static int a5u_hp_req[2] = { -1, -1 }, a5u_spk_req = -1, a5u_ep_req = -1;
+
+static int a5u_boosted(int req, int boost, int max)
+{
+	int v = req + boost;
+
+	return v > max ? max : (v < 0 ? 0 : v);
+}
+
+static int a5u_apply(struct snd_kcontrol *kc, struct snd_ctl_elem_value *uc,
+		     int *req, int n, int boost, int cap)
+{
+	struct snd_ctl_elem_value tmp = *uc;
+	int i;
+
+	for (i = 0; i < n; i++) {
+		req[i] = uc->value.integer.value[i];
+		tmp.value.integer.value[i] = a5u_boosted(req[i], boost, cap);
+	}
+	return snd_soc_put_volsw(kc, &tmp);
+}
+
+static int a5u_get(struct snd_kcontrol *kc, struct snd_ctl_elem_value *uc,
+		   int *req, int n)
+{
+	int i, ret = snd_soc_get_volsw(kc, uc);
+
+	for (i = 0; i < n; i++)
+		if (req[i] >= 0)
+			uc->value.integer.value[i] = req[i];
+	return ret;
+}
+
+static int a5u_hp_put(struct snd_kcontrol *kc, struct snd_ctl_elem_value *uc)
+{ return a5u_apply(kc, uc, a5u_hp_req, 2, a5u_hp_boost, A5U_HP_MAX); }
+static int a5u_hp_get(struct snd_kcontrol *kc, struct snd_ctl_elem_value *uc)
+{ return a5u_get(kc, uc, a5u_hp_req, 2); }
+static int a5u_spk_put(struct snd_kcontrol *kc, struct snd_ctl_elem_value *uc)
+{ return a5u_apply(kc, uc, &a5u_spk_req, 1, a5u_spk_boost, A5U_SPK_MAX); }
+static int a5u_spk_get(struct snd_kcontrol *kc, struct snd_ctl_elem_value *uc)
+{ return a5u_get(kc, uc, &a5u_spk_req, 1); }
+static int a5u_ep_put(struct snd_kcontrol *kc, struct snd_ctl_elem_value *uc)
+{ return a5u_apply(kc, uc, &a5u_ep_req, 1, a5u_ep_boost, A5U_EP_MAX); }
+static int a5u_ep_get(struct snd_kcontrol *kc, struct snd_ctl_elem_value *uc)
+{ return a5u_get(kc, uc, &a5u_ep_req, 1); }
+
+/* re-apply the last Android value with the new boost (register level) */
+static void a5u_reapply(void)
+{
+	unsigned int max_hp = BIT(VOLHP_CTVOL_HP_WIDTH) - 1;
+	unsigned int v;
+
+	if (!a5u_codec)
+		return;
+	if (a5u_hp_req[0] >= 0) {	/* inverted: 0 = loudest */
+		v = max_hp - a5u_boosted(a5u_hp_req[0], a5u_hp_boost, max_hp);
+		snd_soc_update_bits(a5u_codec, COD3026X_30_VOL_HPL, VOLHP_CTVOL_HP_MASK, v << VOLHP_CTVOL_HP_SHIFT);
+		v = max_hp - a5u_boosted(a5u_hp_req[1], a5u_hp_boost, max_hp);
+		snd_soc_update_bits(a5u_codec, COD3026X_31_VOL_HPR, VOLHP_CTVOL_HP_MASK, v << VOLHP_CTVOL_HP_SHIFT);
+	}
+	if (a5u_spk_req >= 0) {
+		v = a5u_boosted(a5u_spk_req, a5u_spk_boost, A5U_SPK_MAX);
+		snd_soc_update_bits(a5u_codec, COD3026X_32_VOL_EP_SPK,
+			(BIT(CTVOL_SPK_PGA_WIDTH) - 1) << CTVOL_SPK_PGA_SHIFT, v << CTVOL_SPK_PGA_SHIFT);
+	}
+	if (a5u_ep_req >= 0) {
+		v = a5u_boosted(a5u_ep_req, a5u_ep_boost, A5U_EP_MAX);
+		snd_soc_update_bits(a5u_codec, COD3026X_32_VOL_EP_SPK,
+			(BIT(CTVOL_EP_WIDTH) - 1) << CTVOL_EP_SHIFT, v << CTVOL_EP_SHIFT);
+	}
+}
+
+#define A5U_ATTR(name)							\
+static ssize_t name##_show(struct kobject *k, struct kobj_attribute *a, char *b) \
+{ return sprintf(b, "%d\n", a5u_##name); }				\
+static ssize_t name##_store(struct kobject *k, struct kobj_attribute *a,	\
+			    const char *b, size_t n)			\
+{									\
+	int v;								\
+	if (kstrtoint(b, 0, &v) || v < 0 || v > 20)			\
+		return -EINVAL;						\
+	a5u_##name = v;							\
+	a5u_reapply();							\
+	return n;							\
+}									\
+static struct kobj_attribute name##_attr = __ATTR(name, 0664, name##_show, name##_store)
+
+A5U_ATTR(hp_boost);
+A5U_ATTR(spk_boost);
+A5U_ATTR(ep_boost);
+
+static struct attribute *a5u_attrs[] = {
+	&hp_boost_attr.attr, &spk_boost_attr.attr, &ep_boost_attr.attr, NULL,
+};
+static struct attribute_group a5u_group = { .attrs = a5u_attrs };
+
+static void a5u_sound_init(struct snd_soc_codec *codec)
+{
+	struct kobject *kobj;
+
+	a5u_codec = codec;
+	kobj = kobject_create_and_add("a5u_sound", kernel_kobj);
+	if (!kobj || sysfs_create_group(kobj, &a5u_group))
+		pr_err("a5u_sound: sysfs init failed\n");
+}
+
 static const struct snd_kcontrol_new cod3026x_snd_controls[] = {
 	SOC_SINGLE_TLV("MIC1 Boost Volume", COD3026X_20_VOL_AD1,
 			VOLAD1_CTVOL_BST1_SHIFT,
@@ -507,20 +625,20 @@ static const struct snd_kcontrol_new cod3026x_snd_controls[] = {
 			(BIT(VOLAD3_CTVOL_BST_PGA3_WIDTH) - 1), 1,
 			cod3026x_ctvol_bst_pga_tlv),
 
-	SOC_DOUBLE_R_TLV("Headphone Volume", COD3026X_30_VOL_HPL,
+	SOC_DOUBLE_R_EXT_TLV("Headphone Volume", COD3026X_30_VOL_HPL,
 			COD3026X_31_VOL_HPR, VOLHP_CTVOL_HP_SHIFT,
 			(BIT(VOLHP_CTVOL_HP_WIDTH) - 1), 1,
-			cod3026x_ctvol_hp_tlv),
+			a5u_hp_get, a5u_hp_put, cod3026x_ctvol_hp_tlv),
 
-	SOC_SINGLE_TLV("Earphone Volume", COD3026X_32_VOL_EP_SPK,
+	SOC_SINGLE_EXT_TLV("Earphone Volume", COD3026X_32_VOL_EP_SPK,
 			CTVOL_EP_SHIFT,
 			(BIT(CTVOL_EP_WIDTH) - 1), 0,
-			cod3026x_ctvol_ep_tlv),
+			a5u_ep_get, a5u_ep_put, cod3026x_ctvol_ep_tlv),
 
-	SOC_SINGLE_TLV("Speaker Volume", COD3026X_32_VOL_EP_SPK,
+	SOC_SINGLE_EXT_TLV("Speaker Volume", COD3026X_32_VOL_EP_SPK,
 			CTVOL_SPK_PGA_SHIFT,
 			(BIT(CTVOL_SPK_PGA_WIDTH) - 1), 0,
-			cod3026x_ctvol_spk_pga_tlv),
+			a5u_spk_get, a5u_spk_put, cod3026x_ctvol_spk_pga_tlv),
 
 	SOC_SINGLE_TLV("ADC Left Gain", COD3026X_43_ADC_L_VOL,
 			AD_DA_DVOL_SHIFT,
@@ -3573,6 +3691,7 @@ static int cod3026x_codec_probe(struct snd_soc_codec *codec)
 
 	dev_dbg(codec->dev, "(*) %s\n", __func__);
 	cod3026x->codec = codec;
+	a5u_sound_init(codec);
 
 	cod3026x->vdd = devm_regulator_get(codec->dev, "vdd");
 	if (IS_ERR(cod3026x->vdd)) {

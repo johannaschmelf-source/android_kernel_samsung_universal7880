@@ -179,7 +179,35 @@ struct ft_cmd ft_cmds[] = {
 	{FT_CMD("not_support_cmd", not_support_cmd),},
 };
 
+bool check_lowpower_flag(struct sec_ts_data *ts);
+
+/* A5 Ultra: double-tap-to-wake via the AOD double-tap gesture of the IC */
+static ssize_t dt2w_enable_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct sec_ts_data *ts = dev_get_drvdata(dev);
+
+	return sprintf(buf, "%d\n", !!(ts->lowpower_flag & SEC_TS_LOWP_FLAG_AOD));
+}
+
+static ssize_t dt2w_enable_store(struct device *dev, struct device_attribute *attr,
+				 const char *buf, size_t size)
+{
+	struct sec_ts_data *ts = dev_get_drvdata(dev);
+
+	if (buf[0] == '1')
+		ts->lowpower_flag |= SEC_TS_LOWP_FLAG_AOD;
+	else if (buf[0] == '0')
+		ts->lowpower_flag &= ~SEC_TS_LOWP_FLAG_AOD;
+	else
+		return -EINVAL;
+
+	ts->lowpower_mode = check_lowpower_flag(ts);
+	return size;
+}
+static DEVICE_ATTR(dt2w_enable, 0664, dt2w_enable_show, dt2w_enable_store);
+
 static struct attribute *cmd_attributes[] = {
+	&dev_attr_dt2w_enable.attr,
 	&dev_attr_cmd.attr,
 	&dev_attr_cmd_status.attr,
 	&dev_attr_cmd_result.attr,

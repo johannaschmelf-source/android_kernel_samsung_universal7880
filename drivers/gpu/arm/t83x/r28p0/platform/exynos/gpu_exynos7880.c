@@ -71,19 +71,46 @@ void __iomem *g3d1_outstanding_regs;
 #endif /* CONFIG_EXYNOS_BUSMONITOR */
 
 /*  clk,vol,abb,min,max,down stay, pm_qos mem, pm_qos int, pm_qos cpu_kfc_min, pm_qos cpu_egl_max */
+/*
+ * A5 Ultra: Samsung's thresholds (stay only at >=98 % load, climb above 845
+ * only at >98 %) park the GPU on 845 MHz in benchmarks. With OC: climb at
+ * >85 %, fall below 60 %, and only after 3 low samples.
+ */
+#ifdef CONFIG_ECT_OC
+#define A5U_HI_MIN	60
+#define A5U_HI_MAX	85
+#define A5U_HI_STAY	3
+#else
+#define A5U_HI_MIN	98
+#define A5U_HI_MAX	99
+#define A5U_HI_STAY	1
+#endif
+
 static gpu_dvfs_info gpu_dvfs_table_default[] = {
-	{1138, 950000, 0, 98, 100, 1, 0, 1539000, 400000, 1482000, CPU_MAX},
-	{1086, 925000, 0, 98, 100, 1, 0, 1539000, 400000, 1482000, CPU_MAX},
-	{1034, 900000, 0, 98, 100, 1, 0, 1539000, 400000, 1482000, CPU_MAX},
-	{962,  900000, 0, 98,  99, 1, 0, 1539000, 400000, 1482000, CPU_MAX},
-	{845,  900000, 0, 78,  98, 1, 0, 1539000, 400000, 1482000, CPU_MAX},
-	{756,  900000, 0, 78,  85, 1, 0, 1352000, 400000,  962000, CPU_MAX},
+#if defined(CONFIG_ECT_OC) && CONFIG_ECT_OC_GPU_KHZ > 1200000
+	/* A5 Ultra: ECT L0 (1200) rewritten in place to the OC clock */
+	{CONFIG_ECT_OC_GPU_KHZ / 1000, 950000, 0, A5U_HI_MIN, 100, A5U_HI_STAY, 0, 1539000, 400000, 1482000, CPU_MAX},
+#elif defined(CONFIG_ECT_OC) && CONFIG_ECT_OC_GPU_KHZ >= 1200000
+	/* A5 Ultra: Samsung's own (disabled) ECT levels, unlocked by ect_oc.c */
+	{1200, 950000, 0, A5U_HI_MIN, 100, A5U_HI_STAY, 0, 1539000, 400000, 1482000, CPU_MAX},
+#endif
+#if defined(CONFIG_ECT_OC) && CONFIG_ECT_OC_GPU_KHZ >= 1086000
+	{1086, 950000, 0, A5U_HI_MIN, A5U_HI_MAX, A5U_HI_STAY, 0, 1539000, 400000, 1482000, CPU_MAX},
+#endif
+#if defined(CONFIG_ECT_OC) && CONFIG_ECT_OC_GPU_KHZ >= 1086000
+	/* not the top level any more: max_threshold 100 would never step up */
+	{1034, 900000, 0, A5U_HI_MIN, A5U_HI_MAX, A5U_HI_STAY, 0, 1539000, 400000, 1482000, CPU_MAX},
+#else
+	{1034, 900000, 0, A5U_HI_MIN, 100, A5U_HI_STAY, 0, 1539000, 400000, 1482000, CPU_MAX},
+#endif
+	{962,  900000, 0, A5U_HI_MIN, A5U_HI_MAX, A5U_HI_STAY, 0, 1539000, 400000, 1482000, CPU_MAX},
+	{845,  900000, 0, A5U_HI_MIN, A5U_HI_MAX, A5U_HI_STAY, 0, 1539000, 400000,  962000, CPU_MAX},
+	{756,  900000, 0, 78,  85, 1, 0, 1352000, 400000,       0, CPU_MAX},
 	{676,  900000, 0, 78,  85, 1, 0, 1014000, 400000,       0, CPU_MAX},
 	{548,  900000, 0, 78,  85, 1, 0,  845000, 267000,       0, CPU_MAX},
 	{449,  900000, 0, 78,  85, 1, 0,  676000, 267000,       0, CPU_MAX},
 	{343,  900000, 0, 78,  85, 1, 0,  450000, 134000,       0, CPU_MAX},
 };
-
 
 static int mif_min_table[] = {
 	 100000,  133000,  167000,
@@ -94,8 +121,29 @@ static int mif_min_table[] = {
 };
 
 static gpu_attribute gpu_config_attributes[] = {
-	{GPU_MAX_CLOCK, 1138},
-	{GPU_MAX_CLOCK_LIMIT, 1138},
+#ifdef CONFIG_ECT_OC
+	/*
+	 * A5 Ultra: the whole OC table is visible (HKTweaks etc. list it), the
+	 * boot is capped by a sysfs max lock at 1034 (gpu_dvfs_handler_init);
+	 * writing max_clock (HKTweaks "max frequency") lifts it.
+	 */
+#if CONFIG_ECT_OC_GPU_KHZ > 1200000
+	{GPU_MAX_CLOCK, CONFIG_ECT_OC_GPU_KHZ / 1000},
+	{GPU_MAX_CLOCK_LIMIT, CONFIG_ECT_OC_GPU_KHZ / 1000},
+#elif CONFIG_ECT_OC_GPU_KHZ >= 1200000
+	{GPU_MAX_CLOCK, 1200},
+	{GPU_MAX_CLOCK_LIMIT, 1200},
+#elif CONFIG_ECT_OC_GPU_KHZ >= 1086000
+	{GPU_MAX_CLOCK, 1086},
+	{GPU_MAX_CLOCK_LIMIT, 1086},
+#else
+	{GPU_MAX_CLOCK, 1034},
+	{GPU_MAX_CLOCK_LIMIT, 1034},
+#endif
+#else
+	{GPU_MAX_CLOCK, 1034},
+	{GPU_MAX_CLOCK_LIMIT, 1034},
+#endif
 	{GPU_MIN_CLOCK, 343},
 	{GPU_DVFS_START_CLOCK, 343},
 	{GPU_DVFS_BL_CONFIG_CLOCK, 343},
@@ -119,7 +167,19 @@ static gpu_attribute gpu_config_attributes[] = {
 	{GPU_COLD_MINIMUM_VOL, 0},
 	{GPU_VOLTAGE_OFFSET_MARGIN, 25000},
 	{GPU_TMU_CONTROL, 1},
+#if defined(CONFIG_ECT_OC) && CONFIG_ECT_OC_GPU_KHZ > 1200000
+	/*
+	 * A5 Ultra: ECT G3D thermal range 0 (from 20 C) maps to THROTTLING1,
+	 * so this is the *normal* GPU cap, not a hot one. Allow the OC clock.
+	 */
+	{GPU_TEMP_THROTTLING1, CONFIG_ECT_OC_GPU_KHZ / 1000},
+#elif defined(CONFIG_ECT_OC) && CONFIG_ECT_OC_GPU_KHZ >= 1200000
+	{GPU_TEMP_THROTTLING1, 1200},
+#elif defined(CONFIG_ECT_OC) && CONFIG_ECT_OC_GPU_KHZ >= 1086000
+	{GPU_TEMP_THROTTLING1, 1086},
+#else
 	{GPU_TEMP_THROTTLING1, 1034},
+#endif
 	{GPU_TEMP_THROTTLING2, 845},
 	{GPU_TEMP_THROTTLING3, 756},
 	{GPU_TEMP_THROTTLING4, 548},

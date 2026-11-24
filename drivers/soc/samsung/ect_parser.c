@@ -2113,6 +2113,10 @@ int ect_parse_binary_header(void)
 
 	ect_header_info.block_handle = ect_header;
 
+#ifdef CONFIG_ECT_OC
+	ect_oc_apply();
+#endif
+
 	return ret;
 
 err_parser:
