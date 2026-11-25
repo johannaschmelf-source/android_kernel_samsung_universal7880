@@ -52,8 +52,8 @@ jobs:
       - name: Neu packen
         run: |
           mkfs.erofs --help 2>&1 | head -60 || true
-          # 4.14-EROFS-Treiber: feste Zeitstempel ohne Nanosekunden, erweiterte Inodes (mtime pro Inode)
-          sudo mkfs.erofs -zlz4hc -T 1230768000 --ignore-mtime -E force-inode-extended system_m31.img root
+          # 4.14-EROFS-Treiber liest erweiterte Inodes falsch: wie Samsung-Original nur kompakte Inodes, Zeit 0
+          sudo mkfs.erofs -zlz4hc -T 0 --ignore-mtime -E force-inode-compact system_m31.img root
           sudo chown $USER system_m31.img
           ls -la system_m31.img
           md5sum system_m31.img | tee system_m31.md5
