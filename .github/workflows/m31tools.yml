@@ -1,0 +1,27 @@
+name: Build M31 Tools
+on:
+  workflow_dispatch:
+  push: {branches: [claude/upbeat-brahmagupta-u4v5tf], paths: [.github/workflows/m31tools.yml, scripts/m31port/bpfprobe.c]}
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Compiler
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross linux-libc-dev-arm64-cross
+      - name: Bauen
+        run: |
+          aarch64-linux-gnu-gcc -static -O2 -Wall -o bpfprobe scripts/m31port/bpfprobe.c
+          file bpfprobe
+          ls -la bpfprobe
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view m31-tools >/dev/null 2>&1 || gh release create m31-tools --target "$GITHUB_SHA" --title "M31 Tools" --notes "Diagnose-Werkzeuge fuer den M31-Port" || true
+          sleep 3
+          gh release upload m31-tools bpfprobe --clobber
