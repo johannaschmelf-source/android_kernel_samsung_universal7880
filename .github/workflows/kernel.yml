@@ -8,7 +8,7 @@ concurrency:
   group: a5ultra-kernel
   cancel-in-progress: true
 env:
-  TAG: a5-ultra-v25
+  TAG: a5-ultra-v26
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -16,15 +16,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # CPU 2002, GPU 1400 @ ~1,21 V, Drosselung ab 96 C
-          - name: v25-gpu1400
-            env: "CPU_UV_DELTA=0 GPU_KHZ=1400000 GPU_UV_MAX=1250000 GPU_TOP_EXTRA_UV=150000 THERMAL_SHIFT=20"
-          # CPU 2002, GPU 1400 @ ~1,175 V
-          - name: v25-gpu1400lo
-            env: "CPU_UV_DELTA=0 GPU_KHZ=1400000 GPU_UV_MAX=1250000 GPU_TOP_EXTRA_UV=112500 THERMAL_SHIFT=20"
-          # CPU 2054 @ ~1,23 V + GPU 1352 @ 1,1125 V + RAM 1716
-          - name: v25-2054ram
-            env: "CPU_KHZ=2054000 CPU_UV_DELTA=0 TOP_EXTRA_UV=50000 GPU_TOP_EXTRA_UV=50000 THERMAL_SHIFT=20 MIF_KHZ=1716000 MIF_UV_DELTA=50000"
+          # wie v24-therm + RAM 1716 @ +100 mV
+          - name: v26-ram100
+            env: "CPU_UV_DELTA=0 GPU_TOP_EXTRA_UV=50000 THERMAL_SHIFT=20 MIF_KHZ=1716000 MIF_UV_DELTA=100000 MIF_UV_MAX=1150000"
+          # wie v24-therm + RAM 1716 @ +150 mV
+          - name: v26-ram150
+            env: "CPU_UV_DELTA=0 GPU_TOP_EXTRA_UV=50000 THERMAL_SHIFT=20 MIF_KHZ=1716000 MIF_UV_DELTA=150000 MIF_UV_MAX=1150000"
     steps:
       - uses: actions/checkout@v4
         with:
