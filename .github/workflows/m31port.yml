@@ -1,0 +1,63 @@
+name: Build M31 One UI 8.5 Port
+on:
+  workflow_dispatch:
+  push: {branches: [claude/upbeat-brahmagupta-u4v5tf], paths: [.github/workflows/m31port.yml, scripts/m31port/**]}
+permissions:
+  contents: write
+concurrency:
+  group: m31port
+  cancel-in-progress: true
+env:
+  TAG: m31-oneui85-v1
+  ROM_ID: 1xFmu3bQmlVNGozudhyXylyQpAr9SPvqa
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Platz und Werkzeuge
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache || true
+          sudo apt-get update && sudo apt-get install -y erofs-utils attr
+          df -h .
+      - name: ROM laden
+        run: |
+          curl -sL -o rom.zip "https://drive.usercontent.google.com/download?id=$ROM_ID&export=download&confirm=t"
+          ls -la rom.zip
+          unzip -o rom.zip system.img
+          rm rom.zip
+      - name: System entpacken
+        run: |
+          sudo modprobe erofs || true
+          sudo mkdir -p /mnt/s root
+          sudo mount -t erofs -o loop,ro system.img /mnt/s
+          sudo cp -a /mnt/s/. root/
+          sudo umount /mnt/s
+          rm system.img
+          sudo getfattr -n security.selinux root/system/bin/init
+          sudo getfattr -n security.capability root/system/bin/surfaceflinger 2>/dev/null || true
+      - name: Fuer das M31 anpassen
+        run: |
+          f=root/system/system_ext/etc/selinux/system_ext_property_contexts
+          sudo sed -i 's/^init\.svc\.vendor\.wvkprov_server_hal/#&/' $f
+          grep -n 'wvkprov_server_hal' $f
+          sudo cp scripts/m31port/floating_feature.xml root/system/etc/floating_feature.xml
+          sudo getfattr -n security.selinux root/system/etc/floating_feature.xml
+          grep -c capacitive_powerkey_phone root/system/etc/floating_feature.xml
+      - name: Neu packen
+        run: |
+          sudo mkfs.erofs -zlz4hc system_m31.img root
+          sudo chown $USER system_m31.img
+          ls -la system_m31.img
+          md5sum system_m31.img | tee system_m31.md5
+          split -b 1900m -d system_m31.img system_m31.img.part
+          ls -la system_m31.img.part*
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view $TAG >/dev/null 2>&1 || gh release create $TAG --target "$GITHUB_SHA" --title "M31 One UI 8.5 $TAG" --notes "system.img fuer Galaxy M31 (Teile zusammensetzen)" || true
+          sleep 5
+          for f in system_m31.md5 system_m31.img.part*; do gh release upload $TAG $f --clobber; done
