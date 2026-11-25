@@ -8,7 +8,7 @@ concurrency:
   group: a3ultra-kernel
   cancel-in-progress: true
 env:
-  TAG: a3-ultra-v1
+  TAG: a3-ultra-v2
   SRC: https://github.com/samsungexynos7870/android_kernel_samsung_exynos7870
   SRC_BRANCH: lineage-22.2
 jobs:
@@ -18,12 +18,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # CPU bis 1794, GPU bis 1300 freigeschaltet, Start mit 1586/1001, +25 mV
-          - name: a3-v1
-            env: "CPU_UV_DELTA=25000 GPU_UV_DELTA=25000"
-          # wie a3-v1, +50 mV
-          - name: a3-v1hi
-            env: "CPU_UV_DELTA=50000 GPU_UV_DELTA=50000"
+          # CPU bis 1794 (+25 mV), GPU startet mit 1300 als Obergrenze (+25 mV)
+          - name: a3-v2
+            env: "CPU_UV_DELTA=25000 GPU_UV_DELTA=25000 GPU_BOOT_MHZ=1300"
+          # wie a3-v2, GPU +50 mV
+          - name: a3-v2g50
+            env: "CPU_UV_DELTA=25000 GPU_UV_DELTA=50000 GPU_BOOT_MHZ=1300"
     steps:
       - uses: actions/checkout@v4
         with:
