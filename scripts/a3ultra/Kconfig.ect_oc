@@ -1,0 +1,55 @@
+
+config ECT_OC
+	bool "A3 Ultra: unlock Samsung's locked CPU/GPU levels in ECT"
+	depends on ECT
+	default n
+
+config ECT_OC_BOOT_CAP
+	bool "Boot at the stock CPU/GPU max (raise via scaling_max_freq / gpu_max_clock)"
+	depends on ECT_OC
+	default y
+
+config ECT_OC_CPU_BOOT_KHZ
+	int "CPU max at boot in kHz"
+	depends on ECT_OC
+	default 1586000
+
+config ECT_OC_GPU_BOOT_MHZ
+	int "GPU max at boot in MHz"
+	depends on ECT_OC
+	default 1001
+
+config ECT_OC_THERMAL_SHIFT
+	int "Delay CPU/GPU thermal throttling by this many degrees C (0 = stock)"
+	depends on ECT_OC
+	default 0
+
+config ECT_OC_CPU_KHZ
+	int "CPU top frequency in kHz, must be an ECT level (0 = off)"
+	depends on ECT_OC
+	default 1794000
+
+config ECT_OC_CPU_UV_DELTA
+	int "Extra voltage for unlocked CPU levels in uV"
+	depends on ECT_OC
+	default 25000
+
+config ECT_OC_CPU_UV_MAX
+	int "Absolute CPU voltage cap in uV"
+	depends on ECT_OC
+	default 1250000
+
+config ECT_OC_GPU_KHZ
+	int "GPU top frequency in kHz, must be an ECT level (0 = off)"
+	depends on ECT_OC
+	default 1300000
+
+config ECT_OC_GPU_UV_DELTA
+	int "Extra voltage for unlocked GPU levels in uV"
+	depends on ECT_OC
+	default 25000
+
+config ECT_OC_GPU_UV_MAX
+	int "Absolute GPU voltage cap in uV"
+	depends on ECT_OC
+	default 1200000
