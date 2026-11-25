@@ -58,6 +58,10 @@ edit("drivers/cpufreq/exynos-mp-cpufreq.c",
 gpu = "drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_exynos7870.c"
 edit(gpu, "\t{GPU_MAX_CLOCK, 1001},", "\t{GPU_MAX_CLOCK, CONFIG_ECT_OC_GPU_BOOT_MHZ},")
 edit(gpu, "\t{GPU_MAX_CLOCK_LIMIT, 1001},", "\t{GPU_MAX_CLOCK_LIMIT, CONFIG_ECT_OC_GPU_KHZ / 1000},")
-edit(gpu, "\t{1300, 900000,", "\t{1300, 1200000,")
-edit(gpu, "\t{1246, 900000,", "\t{1246, 1150000,")
-edit(gpu, "\t{1146, 900000,", "\t{1146, 1100000,")
+# fallback voltages + governor thresholds (min, max utilisation in %):
+# stock 1001 had max 100, so the governor never stepped above 1001.
+edit(gpu, "\t{1300, 900000, 0, 98, 100,", "\t{1300, 1200000, 0, 95, 100,")
+edit(gpu, "\t{1246, 900000, 0, 98, 100,", "\t{1246, 1150000, 0, 93, 98,")
+edit(gpu, "\t{1146, 900000, 0, 98, 100,", "\t{1146, 1100000, 0, 90, 96,")
+edit(gpu, "\t{1001, 900000, 0, 98, 100,", "\t{1001, 900000, 0, 85, 95,")
+edit(gpu, "\t{845,  900000, 0, 78,  98,", "\t{845,  900000, 0, 75,  92,")
