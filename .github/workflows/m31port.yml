@@ -8,7 +8,7 @@ concurrency:
   group: m31port
   cancel-in-progress: true
 env:
-  TAG: m31-oneui85-v1
+  TAG: m31-oneui85-v2
   ROM_ID: 1xFmu3bQmlVNGozudhyXylyQpAr9SPvqa
 jobs:
   build:
@@ -43,6 +43,10 @@ jobs:
           f=root/system/system_ext/etc/selinux/system_ext_property_contexts
           sudo sed -i 's/^init\.svc\.vendor\.wvkprov_server_hal/#&/' $f
           grep -n 'wvkprov_server_hal' $f
+          # zygote nicht an bpf.progs_loaded koppeln (NetBpfLoad scheitert auf dem M31-4.14-Kernel)
+          r=root/system/etc/init/hw/init.rc
+          sudo sed -i 's/^on zygote-start && property:bpf.progs_loaded=1$/on zygote-start/' $r
+          grep -n '^on zygote-start' $r
           sudo cp scripts/m31port/floating_feature.xml root/system/etc/floating_feature.xml
           sudo getfattr -n security.selinux root/system/etc/floating_feature.xml
           grep -c capacitive_powerkey_phone root/system/etc/floating_feature.xml
