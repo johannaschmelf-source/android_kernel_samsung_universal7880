@@ -22,12 +22,15 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache || true
           sudo apt-get update && sudo apt-get install -y erofs-utils attr
           df -h .
-      - name: ROM laden
+      - name: System v1 laden
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          curl -sL -o rom.zip "https://drive.usercontent.google.com/download?id=$ROM_ID&export=download&confirm=t"
-          ls -la rom.zip
-          unzip -o rom.zip system.img
-          rm rom.zip
+          gh release download m31-oneui85-v1 -p 'system_m31.img.part*' -p 'system_m31.md5'
+          cat system_m31.img.part* > system.img
+          rm system_m31.img.part*
+          echo "$(cut -d' ' -f1 system_m31.md5)  system.img" | md5sum -c
+          rm system_m31.md5
       - name: System entpacken
         run: |
           sudo modprobe erofs || true
