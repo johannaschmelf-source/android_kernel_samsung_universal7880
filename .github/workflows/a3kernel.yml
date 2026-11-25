@@ -1,0 +1,55 @@
+name: Build A3 Ultra Kernel
+on:
+  workflow_dispatch:
+  push: {branches: [claude/upbeat-brahmagupta-u4v5tf], paths: [.github/workflows/a3kernel.yml, scripts/a3ultra/**]}
+permissions:
+  contents: write
+concurrency:
+  group: a3ultra-kernel
+  cancel-in-progress: true
+env:
+  TAG: a3-ultra-v1
+  SRC: https://github.com/samsungexynos7870/android_kernel_samsung_exynos7870
+  SRC_BRANCH: lineage-22.2
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # CPU bis 1794, GPU bis 1300 freigeschaltet, Start mit 1586/1001, +25 mV
+          - name: a3-v1
+            env: "CPU_UV_DELTA=25000 GPU_UV_DELTA=25000"
+          # wie a3-v1, +50 mV
+          - name: a3-v1hi
+            env: "CPU_UV_DELTA=50000 GPU_UV_DELTA=50000"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Pakete
+        run: sudo apt-get update && sudo apt-get install -y bc bison flex libssl-dev python2 device-tree-compiler cpio
+      - name: Quellen
+        run: |
+          git clone --depth 1 -b lineage-19.0 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 $HOME/tc
+          git clone --depth 1 -b $SRC_BRANCH $SRC $HOME/k
+          git -C $HOME/k log -1 --format='%H %s'
+      - name: Bauen
+        shell: bash
+        run: |
+          set -eo pipefail
+          export ${{ matrix.env }}
+          export NAME=${{ matrix.name }}
+          bash scripts/a3ultra/build.sh $HOME/k $HOME/tc/bin/aarch64-linux-android- 2>&1 | tail -200
+          mkdir out
+          cp $HOME/k/arch/arm64/boot/Image out/A3Image_${{ matrix.name }}
+          grep ECT_OC $HOME/k/.config > out/A3config_${{ matrix.name }}.txt
+          ls -la out
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view $TAG >/dev/null 2>&1 || gh release create $TAG --target "$GITHUB_SHA" --title "A3 Ultra $TAG (Test)" --notes "Kernel-Image fuer SM-A320FL LineageOS 22.2, mit swapkernel.py in das eigene boot.img einsetzen" || true
+          sleep 5
+          gh release upload $TAG out/* --clobber
