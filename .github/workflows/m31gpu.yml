@@ -28,14 +28,18 @@ jobs:
           git checkout -q FETCH_HEAD
       - name: modules_prepare
         run: |
+          exec > >(tee -a build.log) 2>&1
           cd k
           cp ../scripts/m31gpu/m31.config .config
+          rm -rf drivers/kernelsu; mkdir -p drivers/kernelsu; touch drivers/kernelsu/Kconfig drivers/kernelsu/Makefile
           export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- ANDROID_MAJOR_VERSION=r ANDROID_VERSION=110000
           # fehlende Submodule (KernelSU usw.) als leere Kconfig/Makefile anlegen
           grep -rhoE '^\s*source\s+"[^"$]+"' --include='Kconfig*' . | sed -E 's/.*"(.*)"/\1/' | sort -u | while read f; do
+            dn=$(dirname "$f"); if [ -L "$dn" ] && [ ! -e "$dn" ]; then rm -f "$dn"; fi
             [ -e "$f" ] || { mkdir -p "$(dirname "$f")"; touch "$f"; touch "$(dirname "$f")/Makefile"; echo "leer angelegt: $f"; }
           done
-          (make olddefconfig && make -j$(nproc) modules_prepare) 2>&1 | tee ../build.log | tail -40
+          ls -la drivers/kernelsu drivers/kernelsu/ 2>&1 | head -5
+          (make olddefconfig && make -j$(nproc) modules_prepare) 2>&1 | tail -60
           echo "#define UTS_RELEASE \"$KREL\"" > include/generated/utsrelease.h
           cp ../scripts/m31gpu/Module.symvers.in Module.symvers
       - name: Modul bauen
