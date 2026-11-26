@@ -31,6 +31,7 @@ jobs:
           exec > >(tee -a build.log) 2>&1
           cd k
           cp ../scripts/m31gpu/m31.config .config
+          printf 'CONFIG_LITTLE_CPU_MASK=15\nCONFIG_BIG_CPU_MASK=240\n' >> .config
           rm -rf drivers/kernelsu; mkdir -p drivers/kernelsu; touch drivers/kernelsu/Kconfig drivers/kernelsu/Makefile
           export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- ANDROID_MAJOR_VERSION=r ANDROID_VERSION=110000
           # fehlende Submodule (KernelSU usw.) als leere Kconfig/Makefile anlegen
@@ -39,7 +40,8 @@ jobs:
             [ -e "$f" ] || { mkdir -p "$(dirname "$f")"; touch "$f"; touch "$(dirname "$f")/Makefile"; echo "leer angelegt: $f"; }
           done
           ls -la drivers/kernelsu drivers/kernelsu/ 2>&1 | head -5
-          (make olddefconfig && make -j$(nproc) modules_prepare) 2>&1 | tail -60
+          (make olddefconfig && make -j$(nproc) modules_prepare < /dev/null) 2>&1 | tail -60
+          test -f include/generated/autoconf.h
           echo "#define UTS_RELEASE \"$KREL\"" > include/generated/utsrelease.h
           cp ../scripts/m31gpu/Module.symvers.in Module.symvers
       - name: Modul bauen
