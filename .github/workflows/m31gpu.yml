@@ -1,0 +1,53 @@
+name: Build M31 GPU Module
+on:
+  workflow_dispatch:
+  push: {branches: [claude/upbeat-brahmagupta-u4v5tf], paths: [.github/workflows/m31gpu.yml, scripts/m31gpu/**]}
+permissions:
+  contents: write
+concurrency:
+  group: m31gpu
+  cancel-in-progress: true
+env:
+  MINT_SHA: 7f72a8b689677562f028d78b2e91bd79277a0aba
+  KREL: 4.14.284-LONGSU-gffbd2268fef7
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Werkzeuge
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu bc flex bison libssl-dev
+      - name: Kernel-Quellen (Mint 9610/9611)
+        run: |
+          mkdir k && cd k
+          git init -q
+          git remote add origin https://github.com/FreshROMs/android_kernel_samsung_exynos9610_mint.git
+          git fetch -q --depth 1 origin $MINT_SHA
+          git checkout -q FETCH_HEAD
+      - name: modules_prepare
+        run: |
+          cd k
+          cp ../scripts/m31gpu/m31.config .config
+          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+          (make olddefconfig && make -j$(nproc) modules_prepare) 2>&1 | tee ../build.log | tail -40
+          echo "#define UTS_RELEASE \"$KREL\"" > include/generated/utsrelease.h
+          cp ../scripts/m31gpu/Module.symvers.in Module.symvers
+      - name: Modul bauen
+        run: |
+          mkdir mod && cp scripts/m31gpu/*.c scripts/m31gpu/Makefile mod/
+          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+          make -C k M=$PWD/mod modules 2>&1 | tee -a build.log | tail -40
+          ls -la mod/*.ko
+          aarch64-linux-gnu-objdump -h mod/m31peek.ko | grep -E 'versions|modinfo'
+          strings mod/m31peek.ko | grep vermagic
+      - name: Release
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view m31-gpu >/dev/null 2>&1 || gh release create m31-gpu --target "$GITHUB_SHA" --title "M31 GPU" --notes "GPU-Tuning-Module fuer den M31" || true
+          sleep 3
+          gh release upload m31-gpu build.log --clobber || true
+          gh release upload m31-gpu mod/*.ko --clobber || true
