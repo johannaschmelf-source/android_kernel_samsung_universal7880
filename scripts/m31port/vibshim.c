@@ -31,6 +31,7 @@ typedef binder_status_t (*onTransact_t)(AIBinder *, transaction_code_t, const AP
 static AIBinder_Class *(*p_Class_define)(const char *, onCreate_t, onDestroy_t, onTransact_t);
 static AIBinder *(*p_AIBinder_new)(const AIBinder_Class *, void *);
 static void (*p_markVintf)(AIBinder *);
+static binder_status_t (*p_setExtension)(AIBinder *, AIBinder *);
 static binder_exception_t (*p_addService)(AIBinder *, const char *);
 static void (*p_setMaxThreads)(uint32_t);
 static void (*p_startPool)(void);
@@ -123,6 +124,21 @@ static binder_status_t onTransact(AIBinder *b, transaction_code_t code, const AP
     }
 }
 
+// Samsung-Erweiterung vendor.samsung.hardware.vibrator.ISehVibrator (V5).
+// system_server holt sie per AIBinder_getExtension; ohne sie -> Nullzeiger-Absturz.
+// Alles meldet "nicht unterstuetzt" (false / 0 / leere Liste), damit der Standardpfad (on/off) genutzt wird.
+static binder_status_t onTransactSeh(AIBinder *b, transaction_code_t code, const AParcel *in, AParcel *out) {
+    (void)b; (void)in;
+    if (code == FIRST_CALL + 16777214) { reply_ex(out, 0); return p_writeInt32(out, 5); }
+    if (code == FIRST_CALL + 16777213) { reply_ex(out, 0); return p_writeString(out, "notfrozen", 9); }
+    if (code >= 1 && code <= 0x1b) {
+        // supports*/has* -> false, get* -> 0 / leere Liste, set*/perform* -> ok (+0)
+        reply_ex(out, 0);
+        return p_writeInt32(out, 0);
+    }
+    return reply_ex(out, EX_UNSUPPORTED_OPERATION);
+}
+
 static void *onCreate(void *a) { return a ? a : (void *)1; }
 static void onDestroy(void *a) { (void)a; }
 
@@ -150,13 +166,23 @@ int main(int argc, char **argv) {
     SYM(p_statusOk, "AStatus_newOk");
     SYM(p_statusEx, "AStatus_fromExceptionCode");
     SYM(p_statusDelete, "AStatus_delete");
+    SYM(p_setExtension, "AIBinder_setExtension");
     need = 0;
     SYM(p_markVintf, "AIBinder_markVintfStability");
 
     AIBinder_Class *cls = p_Class_define("android.hardware.vibrator.IVibrator", onCreate, onDestroy, onTransact);
     if (!cls) { fprintf(stderr, "Class_define fehlgeschlagen\n"); return 1; }
     AIBinder *bn = p_AIBinder_new(cls, NULL);
-    if (p_markVintf) p_markVintf(bn); else LOG("markVintfStability fehlt");
+    AIBinder_Class *scls = p_Class_define("vendor.samsung.hardware.vibrator.ISehVibrator", onCreate, onDestroy, onTransactSeh);
+    AIBinder *ext = scls ? p_AIBinder_new(scls, NULL) : NULL;
+    if (p_markVintf) { p_markVintf(bn); if (ext) p_markVintf(ext); } else LOG("markVintfStability fehlt");
+    if (!ext || !p_setExtension || p_setExtension(bn, ext) != STATUS_OK) {
+        LOG("setExtension fehlgeschlagen - beende (sonst stuerzt system_server ab)");
+        fprintf(stderr, "setExtension fehlgeschlagen\n");
+        return 1;
+    }
+    LOG("Samsung-Erweiterung gesetzt");
+    { int rf = open("/dev/m31vib.ready", O_WRONLY | O_CREAT | O_CLOEXEC, 0644); if (rf >= 0) close(rf); }
     p_setMaxThreads(2);
     p_startPool();
     for (int i = 0; i < 300; i++) {
