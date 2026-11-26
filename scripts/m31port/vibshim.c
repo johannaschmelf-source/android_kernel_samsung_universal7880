@@ -183,6 +183,12 @@ int main(int argc, char **argv) {
     }
     LOG("Samsung-Erweiterung gesetzt");
     { int rf = open("/dev/m31vib.ready", O_WRONLY | O_CREAT | O_CLOEXEC, 0644); if (rf >= 0) close(rf); }
+    // Erst anmelden, wenn das Manifest eingeblendet ist (servicemanager merkt sich das Manifest beim ersten Zugriff)
+    if (!test) {
+        int w = 0;
+        while (access("/dev/m31vib.mounted", F_OK) != 0 && w < 100) { usleep(50000); w++; }
+        if (access("/dev/m31vib.mounted", F_OK) != 0) { LOG("Manifest nicht eingeblendet - beende"); fprintf(stderr, "kein Manifest\n"); return 1; }
+    }
     p_setMaxThreads(2);
     p_startPool();
     for (int i = 0; i < 300; i++) {
