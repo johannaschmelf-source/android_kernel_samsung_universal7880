@@ -69,13 +69,13 @@ static binder_status_t reply_ex(AParcel *out, binder_exception_t ex) {
 static int effect_ms(int32_t e, int8_t strength) {
     int ms;
     switch (e) {
-        case 0: ms = 14; break;
-        case 1: ms = 28; break;
-        case 2: ms = 10; break;
-        case 3: ms = 24; break;
-        case 4: ms = 12; break;
-        case 5: ms = 20; break;
-        case 21: ms = 8; break;
+        case 0: ms = 26; break;
+        case 1: ms = 45; break;
+        case 2: ms = 22; break;
+        case 3: ms = 38; break;
+        case 4: ms = 24; break;
+        case 5: ms = 34; break;
+        case 21: ms = 20; break;
         default: return -1;
     }
     if (strength == 0) ms = ms * 3 / 4;
@@ -98,8 +98,9 @@ static binder_status_t onTransact(AIBinder *b, transaction_code_t code, const AP
             int32_t ms = 0;
             p_readInt32(in, &ms);
             // Samsung-Framework spielt jede Haptik (Tippen, Gesten, Tastatur) als 55-ms-Impuls.
-            // Kurze Impulse auf knackige ~13 ms kuerzen (S25-Ultra-Gefuehl); Klingeln/Wecker bleiben lang.
-            if (ms > 0 && ms <= 80) { ms = ms / 4; if (ms < 12) ms = 12; if (ms > 20) ms = 20; }
+            // Kurze Impulse auf ~27 ms setzen: der Muenz-Motor (ERM) braucht ~25 ms zum Anlaufen,
+            // darunter klackert er nur. Klingeln/Wecker bleiben lang.
+            if (ms > 0 && ms <= 80) { ms = ms / 2; if (ms < 24) ms = 24; if (ms > 32) ms = 32; }
             vib_write(ms);
             return reply_ex(out, 0);
         }
