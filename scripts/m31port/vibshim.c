@@ -69,13 +69,13 @@ static binder_status_t reply_ex(AParcel *out, binder_exception_t ex) {
 static int effect_ms(int32_t e, int8_t strength) {
     int ms;
     switch (e) {
-        case 0: ms = 22; break;
-        case 1: ms = 40; break;
-        case 2: ms = 14; break;
-        case 3: ms = 45; break;
-        case 4: ms = 18; break;
-        case 5: ms = 32; break;
-        case 21: ms = 10; break;
+        case 0: ms = 14; break;
+        case 1: ms = 28; break;
+        case 2: ms = 10; break;
+        case 3: ms = 24; break;
+        case 4: ms = 12; break;
+        case 5: ms = 20; break;
+        case 21: ms = 8; break;
         default: return -1;
     }
     if (strength == 0) ms = ms * 3 / 4;
@@ -97,6 +97,9 @@ static binder_status_t onTransact(AIBinder *b, transaction_code_t code, const AP
         case FIRST_CALL + 2: { /* on(int timeoutMs, IVibratorCallback) */
             int32_t ms = 0;
             p_readInt32(in, &ms);
+            // Samsung-Framework spielt jede Haptik (Tippen, Gesten, Tastatur) als 55-ms-Impuls.
+            // Kurze Impulse auf knackige ~13 ms kuerzen (S25-Ultra-Gefuehl); Klingeln/Wecker bleiben lang.
+            if (ms > 0 && ms <= 80) { ms = ms / 4; if (ms < 12) ms = 12; if (ms > 20) ms = 20; }
             vib_write(ms);
             return reply_ex(out, 0);
         }
