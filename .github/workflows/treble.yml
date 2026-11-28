@@ -1,0 +1,84 @@
+name: Build A5 Treble OC Kernel
+on:
+  workflow_dispatch:
+  push: {branches: [claude/upbeat-brahmagupta-u4v5tf], paths: [.github/workflows/treble.yml]}
+permissions:
+  contents: write
+concurrency:
+  group: a5treble-kernel
+  cancel-in-progress: true
+env:
+  TAG: a5-treble-oc-v1
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Pakete
+        run: sudo apt-get update && sudo apt-get install -y bc bison flex libssl-dev python2 device-tree-compiler cpio patchutils
+      - name: Toolchain und Treble-Quelle
+        run: |
+          git clone --depth 1 -b lineage-19.0 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 $HOME/tc
+          git clone --depth 1 -b 11.0-treble https://github.com/Simon1511/android_kernel_samsung_universal7880 $HOME/k
+      - name: OC-Patch uebertragen
+        shell: bash
+        run: |
+          set -x
+          mkdir -p out
+          git fetch origin rise
+          git diff origin/rise HEAD -- drivers/soc/samsung drivers/cpufreq drivers/gpu/arm include/soc/samsung > out/oc.diff
+          cd $HOME/k
+          patch -p1 --forward --fuzz=3 --no-backup-if-mismatch < $GITHUB_WORKSPACE/out/oc.diff > $GITHUB_WORKSPACE/out/patch.log 2>&1 || true
+          cat $GITHUB_WORKSPACE/out/patch.log
+          find . -name '*.rej' | tee $GITHUB_WORKSPACE/out/rejects.txt
+          for r in $(find . -name '*.rej'); do echo "=== $r"; cat $r; done > $GITHUB_WORKSPACE/out/rejects_full.txt || true
+          # ect_oc.c sicher uebernehmen (neue Datei)
+          cp $GITHUB_WORKSPACE/drivers/soc/samsung/ect_oc.c drivers/soc/samsung/ect_oc.c
+          grep -n ect_oc drivers/soc/samsung/Makefile drivers/soc/samsung/ect_parser.c || true
+          grep -n ECT_OC drivers/soc/samsung/Kconfig | head -3 || true
+      - name: Defconfig
+        shell: bash
+        run: |
+          cd $HOME/k
+          D=arch/arm64/configs/exynos7880-a5y17lte_eur_defconfig
+          sed -i 's|^CONFIG_LOCALVERSION=.*|CONFIG_LOCALVERSION="-A5Ultra-Treble-OC"|' $D
+          sed -i '/CONFIG_F2FS_FS/d' $D
+          grep '^CONFIG_ECT_OC\|^# CONFIG_ECT_OC' $GITHUB_WORKSPACE/arch/arm64/configs/rise-a5y17lte_defconfig >> $D
+          cat >> $D <<'EOF'
+          CONFIG_F2FS_FS=y
+          CONFIG_F2FS_STAT_FS=y
+          CONFIG_F2FS_FS_XATTR=y
+          CONFIG_F2FS_FS_POSIX_ACL=y
+          CONFIG_F2FS_FS_SECURITY=y
+          CONFIG_ZRAM_LZ4_COMPRESS=y
+          CONFIG_IOSCHED_DEADLINE=y
+          CONFIG_CPU_FREQ_GOV_ONDEMAND=y
+          CONFIG_CPU_FREQ_GOV_CONSERVATIVE=y
+          CONFIG_DEFAULT_TCP_CONG="westwood"
+          EOF
+          # v24-therm Werte
+          sed -i 's|^CONFIG_ECT_OC_CPU_UV_DELTA=.*|CONFIG_ECT_OC_CPU_UV_DELTA=0|; s|^CONFIG_ECT_OC_GPU_TOP_EXTRA_UV=.*|CONFIG_ECT_OC_GPU_TOP_EXTRA_UV=50000|; s|^CONFIG_ECT_OC_THERMAL_SHIFT=.*|CONFIG_ECT_OC_THERMAL_SHIFT=20|' $D
+          grep -E 'ECT_OC|F2FS|LOCALVERSION' $D | tee $GITHUB_WORKSPACE/out/defconfig_oc.txt
+      - name: Bauen
+        shell: bash
+        run: |
+          set -eo pipefail
+          cd $HOME/k
+          export ARCH=arm64 SUBARCH=arm64 ANDROID_MAJOR_VERSION=r PLATFORM_VERSION=11 CROSS_COMPILE=$HOME/tc/bin/aarch64-linux-android-
+          make CCACHE= exynos7880-a5y17lte_eur_defconfig
+          make CCACHE= -j"$(nproc)" 2>&1 | tee $GITHUB_WORKSPACE/out/build.log | tail -80
+          test -f arch/arm64/boot/Image
+          cp arch/arm64/boot/Image $GITHUB_WORKSPACE/out/Image
+          cp arch/arm64/boot/dtb.img $GITHUB_WORKSPACE/out/dtb.img 2>/dev/null || true
+          grep -E 'ECT_OC|F2FS_FS=' .config > $GITHUB_WORKSPACE/out/config_final.txt
+          ls -la $GITHUB_WORKSPACE/out
+      - name: Release
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view $TAG >/dev/null 2>&1 || gh release create $TAG --target "$GITHUB_SHA" --title "A5 Treble OC $TAG" --notes "riseTreble 11.0 Kernel + ECT-OC + F2FS (Image fuer One UI 4.1 Port)" || true
+          sleep 5
+          gh release upload $TAG out/* --clobber
