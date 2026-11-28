@@ -8,7 +8,7 @@ concurrency:
   group: a5treble-kernel
   cancel-in-progress: true
 env:
-  TAG: a5-treble-oc-v3
+  TAG: a5-treble-oc-v4
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -38,7 +38,7 @@ jobs:
           for f in drivers/cpufreq/exynos-mp-cpufreq-cal.c drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_exynos7880.c; do echo "take $f"; cp $GITHUB_WORKSPACE/$f $f; done
           sed -i -E 's/^(#define CL[01]_MAX_VOLT[[:space:]]+)1[0-9]{6}/\11300000/' drivers/cpufreq/exynos-mp-cpufreq.c
           sed -i -E 's/^(#define GPU_MAX_VOLT[[:space:]]+)1[0-9]{6}/\11250000/' drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_custom_interface.c
-          grep -nE 'define (CL[01]_MAX_VOLT|GPU_MAX_VOLT)' drivers/cpufreq/exynos-mp-cpufreq.c drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_custom_interface.c
+          grep -nE 'define (CL[01]_MAX_VOLT|GPU_MAX_VOLT)' drivers/cpufreq/exynos-mp-cpufreq.c drivers/gpu/arm/t83x/r28p0/platform/exynos/gpu_custom_interface.c || true
           find . -name '*.rej' -delete
           # ect_oc.c sicher uebernehmen (neue Datei)
           cp $GITHUB_WORKSPACE/drivers/soc/samsung/ect_oc.c drivers/soc/samsung/ect_oc.c
