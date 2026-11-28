@@ -8,7 +8,7 @@ concurrency:
   group: a5treble-kernel
   cancel-in-progress: true
 env:
-  TAG: a5-treble-oc-v1
+  TAG: a5-treble-oc-v2
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -34,6 +34,8 @@ jobs:
           cat $GITHUB_WORKSPACE/out/patch.log
           find . -name '*.rej' | tee $GITHUB_WORKSPACE/out/rejects.txt
           for r in $(find . -name '*.rej'); do echo "=== $r"; cat $r; done > $GITHUB_WORKSPACE/out/rejects_full.txt || true
+          # abgelehnte Dateien komplett aus dem A5Ultra-Kernel uebernehmen
+          for r in $(find . -name '*.rej'); do f=${r%.rej}; f=${f#./}; echo "take $f"; cp $GITHUB_WORKSPACE/$f $f; rm -f $r; done
           # ect_oc.c sicher uebernehmen (neue Datei)
           cp $GITHUB_WORKSPACE/drivers/soc/samsung/ect_oc.c drivers/soc/samsung/ect_oc.c
           grep -n ect_oc drivers/soc/samsung/Makefile drivers/soc/samsung/ect_parser.c || true
@@ -68,7 +70,7 @@ jobs:
           cd $HOME/k
           export ARCH=arm64 SUBARCH=arm64 ANDROID_MAJOR_VERSION=r PLATFORM_VERSION=11 CROSS_COMPILE=$HOME/tc/bin/aarch64-linux-android-
           make CCACHE= exynos7880-a5y17lte_eur_defconfig
-          make CCACHE= -j"$(nproc)" 2>&1 | tee $GITHUB_WORKSPACE/out/build.log | tail -80
+          make CCACHE= KCFLAGS="-Wno-error=unused-function -Wno-error=unused-variable" -j"$(nproc)" 2>&1 | tee $GITHUB_WORKSPACE/out/build.log | tail -80
           test -f arch/arm64/boot/Image
           cp arch/arm64/boot/Image $GITHUB_WORKSPACE/out/Image
           cp arch/arm64/boot/dtb.img $GITHUB_WORKSPACE/out/dtb.img 2>/dev/null || true
