@@ -8,7 +8,7 @@ concurrency:
   group: a5treble-kernel
   cancel-in-progress: true
 env:
-  TAG: a5-treble-oc-v4
+  TAG: a5-treble-oc-v5
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -42,6 +42,26 @@ jobs:
           find . -name '*.rej' -delete
           # ect_oc.c sicher uebernehmen (neue Datei)
           cp $GITHUB_WORKSPACE/drivers/soc/samsung/ect_oc.c drivers/soc/samsung/ect_oc.c
+          # Thermik-Normalbereich (range 0) der CPU auf die freigeschaltete OC-Stufe heben
+          python3 - <<'PY'
+          p = 'drivers/soc/samsung/ect_oc.c'
+          s = open(p).read()
+          anchor = '\tif (!replace)\n\t\treturn;'
+          add = ('\tif (th && oc->thermal && unlocked)\n'
+                 '\t\tfor (f = 0; f < th->num_of_function; f++) {\n'
+                 '\t\t\tstruct ect_ap_thermal_function *fn = &th->function_list[f];\n'
+                 '\t\t\tif (strncmp(fn->function_name, "CPU", 3) || !fn->num_of_range)\n'
+                 '\t\t\t\tcontinue;\n'
+                 '\t\t\tif (fn->range_list[0].max_frequency < oc->target) {\n'
+                 '\t\t\t\tpr_info("%s: %s range0 max %u -> %u kHz\\n", oc->name, fn->function_name, fn->range_list[0].max_frequency, oc->target);\n'
+                 '\t\t\t\tfn->range_list[0].max_frequency = oc->target;\n'
+                 '\t\t\t}\n'
+                 '\t\t}\n\n')
+          assert anchor in s, 'anchor missing'
+          s = s.replace(anchor, add + anchor, 1)
+          open(p, 'w').write(s)
+          print('thermal range0 patch ok')
+          PY
           grep -n ect_oc drivers/soc/samsung/Makefile drivers/soc/samsung/ect_parser.c || true
           grep -n ECT_OC drivers/soc/samsung/Kconfig | head -3 || true
       - name: Defconfig
